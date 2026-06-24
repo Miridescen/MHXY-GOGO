@@ -6,9 +6,15 @@
 把 runs/ 目录下新上传的 CSV 累积进 SQLite 历史库 prices.db，
 入库后把文件移到 runs/ingested/ 避免重复。
 
+数据库结构：
+  item(id, name)                          物品名 ↔ id 映射表
+  price_history(id, item_id, run_time, serverid, server_name,
+                area_name, price_yuan, link, eid)   只存 item_id，不存物品名
+
 CSV 文件名约定： <物品名>__<YYYYMMDD-HHMM>.csv
   例：持国巡守__20260624-0930.csv  ← 物品名和采集时间从文件名解析
 CSV 列： 大区,服务器,serverid,最低价(元),等级,简介,卖家,商品链接,eid
+  （等级/简介/卖家 三列即使在 CSV 里也不入库）
 
 用法（服务器上）： python3 /opt/cbg-data/ingest.py
 """
@@ -24,15 +30,24 @@ DB = os.path.join(BASE, "prices.db")
 
 
 def init_db(db):
+    db.execute("""CREATE TABLE IF NOT EXISTS item(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE NOT NULL)""")
     db.execute("""CREATE TABLE IF NOT EXISTS price_history(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        item TEXT, run_time TEXT,
+        item_id INTEGER NOT NULL,
+        run_time TEXT,
         serverid INTEGER, server_name TEXT, area_name TEXT,
-        price_yuan REAL, equip_level TEXT, summary TEXT, seller TEXT,
-        link TEXT, eid TEXT,
-        UNIQUE(item, run_time, serverid))""")     # 同物品同时间同服去重
-    db.execute("CREATE INDEX IF NOT EXISTS idx_item_srv ON price_history(item, serverid, run_time)")
+        price_yuan REAL, link TEXT, eid TEXT,
+        UNIQUE(item_id, run_time, serverid),
+        FOREIGN KEY(item_id) REFERENCES item(id))""")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_item_srv ON price_history(item_id, serverid, run_time)")
     db.commit()
+
+
+def get_item_id(db, name):
+    db.execute("INSERT OR IGNORE INTO item(name) VALUES(?)", (name,))
+    return db.execute("SELECT id FROM item WHERE name=?", (name,)).fetchone()[0]
 
 
 def parse_name(fname):
@@ -45,21 +60,21 @@ def parse_name(fname):
 
 
 def ingest_file(db, path):
-    item, run_time = parse_name(path)
+    item_name, run_time = parse_name(path)
+    item_id = get_item_id(db, item_name)
     rows = []
     with open(path, encoding="utf-8-sig") as f:
         for r in csv.DictReader(f):
             try:
-                rows.append((item, run_time, int(r["serverid"]), r["服务器"], r["大区"],
-                             float(r["最低价(元)"]), r.get("等级", ""), r.get("简介", ""),
-                             r.get("卖家", ""), r.get("商品链接", ""), r.get("eid", "")))
+                rows.append((item_id, run_time, int(r["serverid"]), r["服务器"], r["大区"],
+                             float(r["最低价(元)"]), r.get("商品链接", ""), r.get("eid", "")))
             except (KeyError, ValueError):
                 continue
     db.executemany("""INSERT OR IGNORE INTO price_history
-        (item,run_time,serverid,server_name,area_name,price_yuan,equip_level,summary,seller,link,eid)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?)""", rows)
+        (item_id,run_time,serverid,server_name,area_name,price_yuan,link,eid)
+        VALUES(?,?,?,?,?,?,?,?)""", rows)
     db.commit()
-    return item, run_time, len(rows)
+    return item_name, run_time, len(rows)
 
 
 def main():
