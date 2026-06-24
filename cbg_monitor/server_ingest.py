@@ -8,8 +8,8 @@
 
 数据库结构：
   item(id, name)                          物品名 ↔ id 映射表
-  price_history(id, item_id, run_time, serverid, server_name,
-                area_name, price_yuan, link, eid)   只存 item_id，不存物品名
+  price_history(id, item_id, run_time, serverid, price_yuan, link, eid)
+                只存 item_id；服务器名/大区靠 serverid 关联 server_map
 
 CSV 文件名约定： <物品名>__<YYYYMMDD-HHMM>.csv
   例：持国巡守__20260624-0930.csv  ← 物品名和采集时间从文件名解析
@@ -35,10 +35,11 @@ def init_db(db):
         name TEXT UNIQUE NOT NULL)""")
     db.execute("""CREATE TABLE IF NOT EXISTS price_history(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        item_id INTEGER NOT NULL,
-        run_time TEXT,
-        serverid INTEGER, server_name TEXT, area_name TEXT,
-        price_yuan REAL, link TEXT, eid TEXT,
+        item_id INTEGER NOT NULL,   -- → item.id
+        run_time TEXT,              -- 采集批次时间
+        serverid INTEGER,           -- 服务器ID(关联 server_map.serverid)
+        price_yuan REAL,            -- 该服最低价(元)
+        link TEXT, eid TEXT,
         UNIQUE(item_id, run_time, serverid),
         FOREIGN KEY(item_id) REFERENCES item(id))""")
     db.execute("CREATE INDEX IF NOT EXISTS idx_item_srv ON price_history(item_id, serverid, run_time)")
@@ -66,13 +67,13 @@ def ingest_file(db, path):
     with open(path, encoding="utf-8-sig") as f:
         for r in csv.DictReader(f):
             try:
-                rows.append((item_id, run_time, int(r["serverid"]), r["服务器"], r["大区"],
+                rows.append((item_id, run_time, int(r["serverid"]),
                              float(r["最低价(元)"]), r.get("商品链接", ""), r.get("eid", "")))
             except (KeyError, ValueError):
                 continue
     db.executemany("""INSERT OR IGNORE INTO price_history
-        (item_id,run_time,serverid,server_name,area_name,price_yuan,link,eid)
-        VALUES(?,?,?,?,?,?,?,?)""", rows)
+        (item_id,run_time,serverid,price_yuan,link,eid)
+        VALUES(?,?,?,?,?,?)""", rows)
     db.commit()
     return item_name, run_time, len(rows)
 

@@ -10,11 +10,12 @@
 数据结构： { areaid: [ [区名,...], [ [serverid,服务器名,...], ... ] ] }
 
 入库表 server_map：
-  product     时间服 / 畅玩服
+  product     服别数字码: 1=时间服, 2=畅玩服
   area_name   大区
   server_name 服务器名
   serverid    服务器ID（合服会多名共用同一ID，正常）
-  server_age  三年内 / 三年外（仅时间服；本脚本不填，留待开服时间探测填充）
+  server_age  开服年限数字码(仅时间服): 1=三年外(3年以上), 2=三年内; NULL=未填
+              （本脚本不填，留待开服时间探测填充）
 
 用法： python3 /opt/cbg-data/server_map.py
 """
@@ -25,9 +26,10 @@ import requests
 
 DB = "/opt/cbg-data/prices.db"
 UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/149.0 Safari/537.36"
+# product 数字码: 1=时间服, 2=畅玩服
 SOURCES = [
-    ("https://cbg-xyq.res.netease.com/js/server_list_data.js", "server_data", "时间服"),
-    ("https://cbg-xyq.res.netease.com/js/xyqs_server_list_data.js", "xyqs_server_data", "畅玩服"),
+    ("https://cbg-xyq.res.netease.com/js/server_list_data.js", "server_data", 1),
+    ("https://cbg-xyq.res.netease.com/js/xyqs_server_list_data.js", "xyqs_server_data", 2),
 ]
 
 
@@ -62,11 +64,11 @@ def fetch_map(url, varname, product):
 def init_db(db):
     db.execute("""CREATE TABLE IF NOT EXISTS server_map(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        product TEXT,
-        area_name TEXT,
-        server_name TEXT,
-        serverid INTEGER,
-        server_age TEXT,
+        product INTEGER,      -- 服别: 1=时间服, 2=畅玩服
+        area_name TEXT,       -- 大区
+        server_name TEXT,     -- 服务器名
+        serverid INTEGER,     -- 服务器ID(合服共用同一ID)
+        server_age INTEGER,   -- 开服年限(仅时间服): 1=三年外(3年以上), 2=三年内; NULL=未填/畅玩服
         UNIQUE(product, area_name, server_name))""")
     db.execute("CREATE INDEX IF NOT EXISTS idx_map_sid ON server_map(serverid)")
     db.commit()
