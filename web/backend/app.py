@@ -26,16 +26,14 @@ DB = os.environ.get("CBG_DB", "/opt/cbg-data/prices.db")
 app = FastAPI(title="狗脑发热 API", version="1.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-# 召唤兽(宝宝)品类配色 —— 取自设计 Design Tokens；后续多品类可扩此表
-CAT_STYLE = {
-    "宝宝": {"bg": "#fbeee8", "fg": "#a8351f", "icon": "宝"},
-    "装备": {"bg": "#f3eadb", "fg": "#9a7b3a", "icon": "武"},
-    "灵饰": {"bg": "#e6f0ea", "fg": "#3a7a5a", "icon": "灵"},
-    "内丹": {"bg": "#eae6f0", "fg": "#5a4a8a", "icon": "丹"},
-    "锦衣": {"bg": "#f6e8ea", "fg": "#9a3a5a", "icon": "衣"},
-    "材料": {"bg": "#f0ece2", "fg": "#8a7a4a", "icon": "材"},
-}
-DEFAULT_CAT = "宝宝"   # item 表暂无品类列，默认召唤兽
+# 品类(图标/配色)来自 category 维表；item.category_id 为空时按此兜底展示
+FALLBACK_CAT = {"name": "宝宝", "icon": "宝", "color_bg": "#fbeee8", "color_fg": "#a8351f"}
+
+
+def load_categories(db):
+    """返回 {category_id: {name, icon, color_bg, color_fg}}"""
+    return {r["id"]: dict(r) for r in db.execute(
+        "SELECT id, name, icon, color_bg, color_fg FROM category")}
 
 
 def conn():
@@ -78,10 +76,11 @@ def build_overview():
     for r in db.execute("SELECT serverid, area_name, server_name FROM server_map"):
         sid_loc.setdefault(r["serverid"], (r["area_name"], r["server_name"]))
 
+    cats = load_categories(db)
     items = []
-    for it in db.execute("SELECT id, name, category FROM item ORDER BY id"):
+    for it in db.execute("SELECT id, name, category_id FROM item ORDER BY id"):
         iid = it["id"]
-        cat = it["category"] or DEFAULT_CAT
+        meta = cats.get(it["category_id"]) or FALLBACK_CAT
         dates = [row[0] for row in db.execute(
             "SELECT DISTINCT run_time FROM price_history WHERE item_id=? ORDER BY run_time", (iid,))]
         if not dates:
@@ -102,10 +101,9 @@ def build_overview():
                 hist.append(mn)
         history_low = min(hist) if hist else low["price"]
         pts, tcolor = trend(hist)
-        cs = CAT_STYLE.get(cat, CAT_STYLE[DEFAULT_CAT])
         items.append({
-            "id": iid, "name": it["name"], "cat": cat, "icon": cs["icon"],
-            "iconBg": cs["bg"], "iconFg": cs["fg"], "latestDate": latest,
+            "id": iid, "name": it["name"], "cat": meta["name"], "icon": meta["icon"],
+            "iconBg": meta["color_bg"], "iconFg": meta["color_fg"], "latestDate": latest,
             "prices": prices,
             "low": {"serverid": int(low_sid), "price": low["price"], "link": low["link"],
                     "daqu": low_area, "server": low_srv},
@@ -142,11 +140,24 @@ def overview():
     return _cache["data"]
 
 
+@app.get("/api/categories")
+def categories():
+    db = conn()
+    out = [dict(r) for r in db.execute(
+        "SELECT id, name, icon, color_bg, color_fg FROM category ORDER BY id")]
+    db.close()
+    return out
+
+
 @app.get("/api/items")
 def items():
     db = conn()
-    out = [{"id": r["id"], "name": r["name"], "category": r["category"], "type_ids": r["type_ids"]}
-           for r in db.execute("SELECT id, name, category, type_ids FROM item ORDER BY id")]
+    cats = load_categories(db)
+    out = []
+    for r in db.execute("SELECT id, name, category_id, type_ids FROM item ORDER BY id"):
+        meta = cats.get(r["category_id"])
+        out.append({"id": r["id"], "name": r["name"], "type_ids": r["type_ids"],
+                    "category_id": r["category_id"], "category": meta["name"] if meta else None})
     db.close()
     return out
 
