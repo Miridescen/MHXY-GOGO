@@ -18,3 +18,7 @@ venv/
 
 # 本地爬取产物（不上传 git，只同步到服务器）
 data/
+
+# 前端构建产物/依赖
+web/frontend/node_modules/
+web/frontend/dist/

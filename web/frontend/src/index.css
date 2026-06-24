@@ -1,0 +1,27 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&family=Noto+Serif+SC:wght@500;700;900&display=swap');
+
+* { box-sizing: border-box; }
+html, body { margin: 0; background: #f3ead9; }
+body {
+  min-height: 100vh;
+  background: #faf6ee;
+  font-family: 'Noto Sans SC', system-ui, sans-serif;
+  color: #2a221a;
+}
+#root { min-height: 100vh; }
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-thumb { background: #d8c8ac; border-radius: 6px; }
+input::placeholder { color: #b8a888; }
+a { color: inherit; }
+
+.serif { font-family: 'Noto Serif SC', serif; }
+
+/* 桌面表格 / 手机卡片 切换 */
+.tableWrap { display: block; }
+.cardWrap { display: none; }
+@media (max-width: 759px) {
+  .tableWrap { display: none; }
+  .cardWrap { display: block; }
+}
+.panel { max-height: 60vh; overflow: auto; }
+.daquItem:hover, .srvItem:hover { filter: brightness(0.97); }
