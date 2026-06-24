@@ -79,8 +79,9 @@ def build_overview():
         sid_loc.setdefault(r["serverid"], (r["area_name"], r["server_name"]))
 
     items = []
-    for it in db.execute("SELECT id, name FROM item ORDER BY id"):
+    for it in db.execute("SELECT id, name, category FROM item ORDER BY id"):
         iid = it["id"]
+        cat = it["category"] or DEFAULT_CAT
         dates = [row[0] for row in db.execute(
             "SELECT DISTINCT run_time FROM price_history WHERE item_id=? ORDER BY run_time", (iid,))]
         if not dates:
@@ -101,9 +102,9 @@ def build_overview():
                 hist.append(mn)
         history_low = min(hist) if hist else low["price"]
         pts, tcolor = trend(hist)
-        cs = CAT_STYLE[DEFAULT_CAT]
+        cs = CAT_STYLE.get(cat, CAT_STYLE[DEFAULT_CAT])
         items.append({
-            "id": iid, "name": it["name"], "cat": DEFAULT_CAT, "icon": cs["icon"],
+            "id": iid, "name": it["name"], "cat": cat, "icon": cs["icon"],
             "iconBg": cs["bg"], "iconFg": cs["fg"], "latestDate": latest,
             "prices": prices,
             "low": {"serverid": int(low_sid), "price": low["price"], "link": low["link"],
@@ -144,8 +145,8 @@ def overview():
 @app.get("/api/items")
 def items():
     db = conn()
-    out = [{"id": r["id"], "name": r["name"], "type_ids": r["type_ids"]}
-           for r in db.execute("SELECT id, name, type_ids FROM item ORDER BY id")]
+    out = [{"id": r["id"], "name": r["name"], "category": r["category"], "type_ids": r["type_ids"]}
+           for r in db.execute("SELECT id, name, category, type_ids FROM item ORDER BY id")]
     db.close()
     return out
 
