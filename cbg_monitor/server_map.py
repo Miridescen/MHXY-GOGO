@@ -14,7 +14,7 @@
   area_name   大区
   server_name 服务器名
   serverid    服务器ID（合服会多名共用同一ID，正常）
-  server_age  开服年限数字码(仅时间服): 1=三年外(3年以上), 2=三年内; NULL=未填
+  server_age  开服年限数字码(仅时间服,对齐搜索页): 3=三年外(3年以上服), 2=1到3年服, 1=1年内服; NULL=未填
               （本脚本不填，留待开服时间探测填充）
 
 用法： python3 /opt/cbg-data/server_map.py
@@ -68,7 +68,7 @@ def init_db(db):
         area_name TEXT,       -- 大区
         server_name TEXT,     -- 服务器名
         serverid INTEGER,     -- 服务器ID(合服共用同一ID)
-        server_age INTEGER,   -- 开服年限(仅时间服): 1=三年外(3年以上), 2=三年内; NULL=未填/畅玩服
+        server_age INTEGER,   -- 开服年限(仅时间服,对齐搜索页): 3=三年外(3年以上服), 2=1到3年服, 1=1年内服; NULL=未填/畅玩服
         UNIQUE(product, area_name, server_name))""")
     db.execute("CREATE INDEX IF NOT EXISTS idx_map_sid ON server_map(serverid)")
     db.commit()
