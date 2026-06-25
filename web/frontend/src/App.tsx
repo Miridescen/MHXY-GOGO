@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { fetchOverview, fmt, serveridOf, serverCell, type Overview, type Item, type Region, type Roles } from './api'
+import { fetchOverview, fmt, serveridOf, serverCell, type Overview, type Item, type Region, type Roles, type RoleClothes } from './api'
 
 const CBG = 'https://xyq.cbg.163.com/'
 const CATS = ['全部', '装备', '宝宝', '灵饰', '内丹', '锦衣', '材料']
@@ -38,6 +38,54 @@ interface Row {
 
 function Trend({ points, color, w = 64 }: { points: string; color: string; w?: number }) {
   return <svg width={w} height={22} viewBox="0 0 64 22"><polyline points={points} fill="none" stroke={color} strokeWidth={2} /></svg>
+}
+
+// 角色+限量锦衣：选锦衣 → 看 性别×等级 全服最低价
+function RoleClothesView({ rc }: { rc: RoleClothes }) {
+  const [sel, setSel] = useState('')
+  if (!rc || !rc.date || !rc.clothes.length) return null
+  const cur = sel && rc.matrix[sel] ? sel : rc.clothes[0]
+  const m = rc.matrix[cur] || {}
+  const hd: CSSProperties = { padding: '10px 14px', fontSize: 12, fontWeight: 700, color: '#b0a48c', textAlign: 'left', borderBottom: '1px solid #ece2cf', background: '#f7efe2' }
+  const cell: CSSProperties = { padding: '11px 14px', borderTop: '1px solid #f0e7d6', whiteSpace: 'nowrap' }
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <div className="serif" style={{ fontSize: 16, fontWeight: 900, color: '#c1452e', borderLeft: '3px solid #c1452e', paddingLeft: 10, letterSpacing: 1, marginBottom: 12 }}>
+        角色 + 七夕限量锦衣 · 全服最低价
+      </div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+        {rc.clothes.map(c => (
+          <button key={c} onClick={() => setSel(c)}
+            style={{ fontSize: 12.5, fontWeight: 600, padding: '6px 13px', borderRadius: 6, cursor: 'pointer', border: '1px solid transparent', ...(c === cur ? { color: '#fff', background: '#c1452e' } : { color: '#6a5a44', background: '#f5ecdd' }) }}>{c}</button>
+        ))}
+      </div>
+      <div style={{ background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 14, overflow: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 560 }}>
+          <thead><tr><th style={hd}>性别 \ 等级</th>{rc.levels.map(l => <th key={l} style={hd}>{l}</th>)}</tr></thead>
+          <tbody>
+            {rc.genders.map(g => (
+              <tr key={g}>
+                <td style={{ ...cell, fontSize: 14, fontWeight: 700 }}>{g}号</td>
+                {rc.levels.map(l => {
+                  const c = m[g]?.[l]
+                  return (
+                    <td key={l} style={cell}>
+                      {c ? (
+                        <a href={c.link} target="_blank" rel="noopener" style={{ textDecoration: 'none', display: 'block' }}>
+                          <div className="serif" style={{ fontSize: 15, fontWeight: 900, color: '#c1452e' }}>{fmt(c.price)}</div>
+                          <div style={{ fontSize: 10.5, color: '#a89878', marginTop: 2 }}>{c.daqu} · {c.server} ↗</div>
+                        </a>
+                      ) : <span style={{ color: '#c0b49c' }}>—</span>}
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
 }
 
 // 角色全服最低价矩阵（类别 × 开服年限），仅全服模式展示
@@ -223,8 +271,9 @@ export default function App() {
         {/* 数据更新时间 */}
         <div style={{ fontSize: 11.5, color: '#b0a48c', marginBottom: 14 }}>数据更新于 {data.generated_at}</div>
 
-        {/* 角色全服最低价矩阵（仅全服模式） */}
+        {/* 角色价格（仅全服模式）：境界矩阵 + 限量锦衣 */}
         {isGlobal && <RoleMatrix roles={data.roles} />}
+        {isGlobal && <RoleClothesView rc={data.roleClothes} />}
 
         {/* chips */}
         <div style={{ display: 'flex', gap: 9, marginBottom: 14, flexWrap: 'wrap' }}>

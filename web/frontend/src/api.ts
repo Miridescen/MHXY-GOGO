@@ -25,12 +25,20 @@ export interface Roles {
   ages: { code: number; name: string }[]
   matrix: Record<string, Record<string, RoleCell>>
 }
+export interface RoleClothes {
+  date: string | null
+  clothes: string[]
+  genders: string[]
+  levels: string[]
+  matrix: Record<string, Record<string, Record<string, RoleCell>>>  // 锦衣 → 性别 → 等级 → cell
+}
 export interface Overview {
   generated_at: string
   served_at: string
   regions: Region[]
   items: Item[]
   roles: Roles
+  roleClothes: RoleClothes
 }
 
 export async function fetchOverview(): Promise<Overview> {

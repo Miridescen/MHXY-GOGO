@@ -113,31 +113,59 @@ def build_overview():
             "historyLow": history_low, "points": pts, "trendColor": tcolor,
         })
     roles = build_roles(db)
+    role_clothes = build_role_clothes(db)
     db.close()
     last = max((i["latestDate"] for i in items), default=None)
     return {"generated_at": last or "", "served_at": dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
-            "regions": regions_list, "items": items, "roles": roles}
+            "regions": regions_list, "items": items, "roles": roles, "roleClothes": role_clothes}
 
 
 ROLE_CATS = ["飞升", "渡劫", "175级", "化圣"]               # 展示顺序
 ROLE_AGES = [{"code": 1, "name": "1年内"}, {"code": 2, "name": "1到3年"}, {"code": 3, "name": "3年以上"}]
 
 
+CLOTHES_ORDER = ["青花瓷", "青花瓷.墨黑", "青花瓷.月白", "冰寒绡", "冰寒绡.月白", "冰寒绡.墨黑",
+                 "落星织", "云龙梦", "云龙梦.月白", "云龙梦.墨黑", "浪淘纱", "浪淘纱·月白", "浪淘纱·墨黑",
+                 "纤云纱", "纤云纱·月白", "纤云纱·墨黑", "水云归", "水云归·月白", "水云归·墨黑"]
+CLOTHES_GENDERS = ["男", "女"]
+CLOTHES_LEVELS = ["69", "109", "飞升", "渡劫", "175", "化圣"]
+
+
+def _latest_cell(db, query_id):
+    row = db.execute("""SELECT run_time, price_yuan, serverid, server_name, area_name, link
+        FROM role_price_history WHERE query_id=? ORDER BY run_time DESC LIMIT 1""", (query_id,)).fetchone()
+    if not row:
+        return None, None
+    return row["run_time"], {"price": row["price_yuan"], "server": row["server_name"],
+                             "daqu": row["area_name"], "link": row["link"]}
+
+
 def build_roles(db):
-    """角色价格矩阵（类别 × 开服年限 → 全服最低价），取每个 query 最新一天。"""
+    """境界组矩阵（类别 × 开服年限 → 全服最低价）。"""
     matrix, latest = {}, None
-    for q in db.execute("SELECT id, conditions FROM role_query WHERE enabled=1"):
+    for q in db.execute("SELECT id, conditions FROM role_query WHERE enabled=1 AND grp='境界'"):
         cond = json.loads(q["conditions"])
-        cat, age = cond.get("类别"), str(cond.get("开服年限"))
-        row = db.execute("""SELECT run_time, price_yuan, serverid, server_name, area_name, link
-            FROM role_price_history WHERE query_id=? ORDER BY run_time DESC LIMIT 1""", (q["id"],)).fetchone()
-        if not row:
+        rt, cell = _latest_cell(db, q["id"])
+        if not cell:
             continue
-        latest = max(latest or "", row["run_time"])
-        matrix.setdefault(cat, {})[age] = {
-            "price": row["price_yuan"], "server": row["server_name"],
-            "daqu": row["area_name"], "link": row["link"]}
+        latest = max(latest or "", rt)
+        matrix.setdefault(cond.get("类别"), {})[str(cond.get("开服年限"))] = cell
     return {"date": latest, "categories": ROLE_CATS, "ages": ROLE_AGES, "matrix": matrix}
+
+
+def build_role_clothes(db):
+    """限量锦衣组：{锦衣: {性别: {等级: cell}}}，前端按锦衣筛选看 性别×等级。"""
+    matrix, latest = {}, None
+    for q in db.execute("SELECT id, conditions FROM role_query WHERE enabled=1 AND grp='锦衣'"):
+        cond = json.loads(q["conditions"])
+        rt, cell = _latest_cell(db, q["id"])
+        if not cell:
+            continue
+        latest = max(latest or "", rt)
+        matrix.setdefault(cond.get("锦衣"), {}).setdefault(cond.get("性别"), {})[cond.get("等级")] = cell
+    clothes = [c for c in CLOTHES_ORDER if c in matrix]
+    return {"date": latest, "clothes": clothes, "genders": CLOTHES_GENDERS,
+            "levels": CLOTHES_LEVELS, "matrix": matrix}
 
 
 # 简单缓存：数据一天才变两次，缓存 60s，避免每次请求都全表扫
