@@ -45,10 +45,9 @@ web/
 
 ## 数据库表
 
-- `item(id, name, type_ids, category_id→category.id)` — 物品（type_ids 为藏宝阁类型ID）
-- `category(id, name, icon, color_bg, color_fg)` — 品类维表（1宝宝 2装备 3灵饰 4内丹 5锦衣 6材料）
-- `price_history(id, item_id, run_time日期, serverid, price_yuan, link, eid)` — 价格历史，唯一键 `(item_id, run_time, serverid)`
-- `server_map(id, product, area_name, server_name, serverid, server_age)` — 区服映射（product:1时间服 2畅玩服；server_age:3三年外 2一到三年 1一年内）
+4 张表：`category`(品类维表) / `item`(物品) / `price_history`(价格历史) / `server_map`(区服映射)。
+
+👉 **字段/约束/关系/常用查询详见 [docs/数据库说明.md](docs/数据库说明.md)**
 
 ## 注意
 
