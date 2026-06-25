@@ -18,11 +18,19 @@ export interface Item {
   points: string
   trendColor: string
 }
+export interface RoleCell { price: number; server: string; daqu: string; link: string }
+export interface Roles {
+  date: string | null
+  categories: string[]
+  ages: { code: number; name: string }[]
+  matrix: Record<string, Record<string, RoleCell>>
+}
 export interface Overview {
   generated_at: string
   served_at: string
   regions: Region[]
   items: Item[]
+  roles: Roles
 }
 
 export async function fetchOverview(): Promise<Overview> {

@@ -24,7 +24,10 @@
   const DELAY_MIN = 1300, DELAY_RAND = 1300;  // 每次请求间隔 1.3~2.6 秒（账号安全，勿调太小）
   const REST_EVERY = 100, REST_MS = 20000;    // 每 100 次歇 20 秒
   // 爬完自动入库接口（HTTPS）。令牌不写在代码里：首次运行弹窗输入，存本浏览器，之后免输。
-  const INGEST_URL = 'https://43-106-131-65.nip.io:8090/api/ingest';
+  const BASE = 'https://43-106-131-65.nip.io:8090';
+  const INGEST_URL = BASE + '/api/ingest';
+  const ROLE_QUERIES_URL = BASE + '/api/role_queries';   // 角色搜索清单(数据驱动)
+  const INGEST_ROLE_URL = BASE + '/api/ingest_role';
   const INGEST_TOKEN = localStorage.getItem('__ingest_token') ||
     (function () { const t = (prompt('首次使用：请输入入库令牌（向管理员索取）') || '').trim();
       if (t) localStorage.setItem('__ingest_token', t); return t; })();
@@ -79,6 +82,26 @@
       document.body.appendChild(a); a.click(); setTimeout(() => { a.remove(); URL.revokeObjectURL(u); }, 1500);
     };
   }
+  // 角色价格：跨服搜 role_query 里的每个组合，取全服最低价 → 入库（数据驱动，新增query自动爬）
+  async function crawlRoles() {
+    try {
+      const queries = await (await fetch(ROLE_QUERIES_URL)).json();
+      const rows = [];
+      for (const q of queries) {
+        const p = new URLSearchParams({ act: 'recommd_by_role', search_type: 'overall_search_role', page: '1', count: '5', order_by: 'price ASC', view_loc: 'overall_search' });
+        for (const k in q.api_params) p.set(k, q.api_params[k]);
+        try {
+          const d = await (await fetch('https://xyq.cbg.163.com/cgi-bin/recommend.py?' + p, { credentials: 'include' })).json();
+          const it = (d.equip_list || [])[0];
+          if (d.status === 1 && it) rows.push({ query_id: q.id, price_yuan: Math.round(it.price) / 100, serverid: it.serverid, server_name: it.server_name, area_name: it.area_name, eid: it.eid, link: 'https://xyq.cbg.163.com/equip?s=' + it.serverid + '&eid=' + it.eid });
+        } catch (e) { /* 跳过 */ }
+        await new Promise(r => setTimeout(r, 1000));
+      }
+      const res = await fetch(INGEST_ROLE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Token': INGEST_TOKEN }, body: JSON.stringify({ run_date: today, rows }) });
+      const j = await res.json();
+      return j.ok ? j.inserted : -1;
+    } catch (e) { return -1; }
+  }
   async function autoIngest() {
     bar.style.background = '#1a73e8'; bar.style.cursor = 'default'; bar.onclick = null;
     bar.textContent = '⏳ 自动入库中…（' + totalCount() + ' 条）';
@@ -88,8 +111,10 @@
         body: JSON.stringify({ run_date: today, rows: buildRows() }) });
       const j = await r.json();
       if (r.ok && j.ok) {
+        bar.textContent = '✅ 召唤兽入库 ' + j.inserted + ' 条，继续爬角色价格…';
+        const rn = await crawlRoles();
         bar.style.background = '#188038';
-        bar.textContent = '✅ 已自动入库 ' + j.inserted + ' 条（' + today + '）｜网站 https://43-106-131-65.nip.io:8090/ 已更新';
+        bar.textContent = '✅ 全部完成！召唤兽 ' + j.inserted + ' + 角色 ' + (rn >= 0 ? rn : '失败') + ' 条（' + today + '）｜网站已更新';
       } else { throw new Error(j.detail || ('HTTP ' + r.status)); }
     } catch (e) {
       bar.style.background = '#d8843a';

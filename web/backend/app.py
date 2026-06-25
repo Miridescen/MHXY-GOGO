@@ -15,6 +15,7 @@
 """
 import os
 import re
+import json
 import sqlite3
 import datetime as dt
 
@@ -111,10 +112,32 @@ def build_overview():
                     "daqu": low_area, "server": low_srv},
             "historyLow": history_low, "points": pts, "trendColor": tcolor,
         })
+    roles = build_roles(db)
     db.close()
     last = max((i["latestDate"] for i in items), default=None)
     return {"generated_at": last or "", "served_at": dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
-            "regions": regions_list, "items": items}
+            "regions": regions_list, "items": items, "roles": roles}
+
+
+ROLE_CATS = ["飞升", "渡劫", "175级", "化圣"]               # 展示顺序
+ROLE_AGES = [{"code": 1, "name": "1年内"}, {"code": 2, "name": "1到3年"}, {"code": 3, "name": "3年以上"}]
+
+
+def build_roles(db):
+    """角色价格矩阵（类别 × 开服年限 → 全服最低价），取每个 query 最新一天。"""
+    matrix, latest = {}, None
+    for q in db.execute("SELECT id, conditions FROM role_query WHERE enabled=1"):
+        cond = json.loads(q["conditions"])
+        cat, age = cond.get("类别"), str(cond.get("开服年限"))
+        row = db.execute("""SELECT run_time, price_yuan, serverid, server_name, area_name, link
+            FROM role_price_history WHERE query_id=? ORDER BY run_time DESC LIMIT 1""", (q["id"],)).fetchone()
+        if not row:
+            continue
+        latest = max(latest or "", row["run_time"])
+        matrix.setdefault(cat, {})[age] = {
+            "price": row["price_yuan"], "server": row["server_name"],
+            "daqu": row["area_name"], "link": row["link"]}
+    return {"date": latest, "categories": ROLE_CATS, "ages": ROLE_AGES, "matrix": matrix}
 
 
 # 简单缓存：数据一天才变两次，缓存 60s，避免每次请求都全表扫
@@ -229,3 +252,50 @@ def ingest(body: IngestBody, x_token: str = Header(default="")):
     _cache["data"] = None   # 失效缓存，下次 overview 立即反映新数据
     return {"ok": True, "inserted": len(data), "items": sorted(items),
             "run_date": body.run_date, "total_rows": total}
+
+
+# ============ 角色价格：查询清单 + 导入 ============
+@app.get("/api/role_queries")
+def role_queries():
+    """爬虫拉取要爬的角色搜索清单（含藏宝阁接口参数）。"""
+    db = conn()
+    out = [{"id": r["id"], "name": r["name"],
+            "conditions": json.loads(r["conditions"]), "api_params": json.loads(r["api_params"])}
+           for r in db.execute("SELECT id,name,conditions,api_params FROM role_query WHERE enabled=1 ORDER BY id")]
+    db.close()
+    return out
+
+
+class RoleRow(BaseModel):
+    query_id: int
+    price_yuan: float
+    serverid: int = 0
+    server_name: str = ""
+    area_name: str = ""
+    link: str = ""
+    eid: str = ""
+
+
+class RoleIngestBody(BaseModel):
+    run_date: str
+    rows: list[RoleRow]
+
+
+@app.post("/api/ingest_role")
+def ingest_role(body: RoleIngestBody, x_token: str = Header(default="")):
+    if not INGEST_TOKEN or x_token != INGEST_TOKEN:
+        raise HTTPException(401, "令牌无效")
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", body.run_date):
+        raise HTTPException(400, "run_date 格式应为 YYYY-MM-DD")
+    db = conn()
+    data = [(r.query_id, body.run_date, r.price_yuan, r.serverid, r.server_name, r.area_name, r.link, r.eid)
+            for r in body.rows]
+    db.executemany("""INSERT INTO role_price_history
+        (query_id,run_time,price_yuan,serverid,server_name,area_name,link,eid) VALUES(?,?,?,?,?,?,?,?)
+        ON CONFLICT(query_id,run_time) DO UPDATE SET
+            price_yuan=excluded.price_yuan, serverid=excluded.serverid, server_name=excluded.server_name,
+            area_name=excluded.area_name, link=excluded.link, eid=excluded.eid""", data)
+    db.commit()
+    db.close()
+    _cache["data"] = None
+    return {"ok": True, "inserted": len(data), "run_date": body.run_date}
