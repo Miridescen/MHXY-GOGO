@@ -1,11 +1,11 @@
 # Claude 本地配置/记忆（不上传）
 .claude/
 
-# 密钥与运行态（含登录 cookie，切勿上传）
-cbg_monitor/config.json
-cbg_monitor/servers.json
-cbg_monitor/prices.db
-cbg_monitor/*.log
+# 密钥/运行态安全网（切勿上传）
+config.json
+*.db
+*.log
+*.pem
 
 # Python
 __pycache__/
