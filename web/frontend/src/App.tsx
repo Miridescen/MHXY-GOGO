@@ -3,6 +3,7 @@ import { fetchOverview, fmt, serveridOf, serverCell, type Overview, type Item, t
 
 const CBG = 'https://xyq.cbg.163.com/'
 const CATS = ['全部', '装备', '宝宝', '灵饰', '内丹', '锦衣', '材料']
+const SEL_KEY = '__mhxy_sel'   // localStorage: 记住用户选的区服/模式
 
 const S: Record<string, CSSProperties> = {
   topbar: { position: 'sticky', top: 0, zIndex: 40, background: '#faf6eecc', backdropFilter: 'saturate(1.2) blur(8px)', borderBottom: '1px solid #ece2cf' },
@@ -48,10 +49,27 @@ export default function App() {
   useEffect(() => {
     fetchOverview().then(d => {
       setData(d)
+      // 恢复上次选择的区服/模式（localStorage），无效则回退到第一个区
       const r0 = d.regions[0]
-      if (r0) { setDaqu(r0.daqu); setServer(r0.servers[0]?.name || '') }
+      let dq = r0?.daqu || '', sv = r0?.servers[0]?.name || ''
+      try {
+        const saved = JSON.parse(localStorage.getItem(SEL_KEY) || 'null')
+        if (saved) {
+          const reg = d.regions.find(r => r.daqu === saved.daqu)
+          if (reg && reg.servers.some(s => s.name === saved.server)) {
+            dq = saved.daqu; sv = saved.server
+            if (saved.mode === 'global' || saved.mode === 'server') setMode(saved.mode)
+          }
+        }
+      } catch { /* ignore */ }
+      setDaqu(dq); setServer(sv)
     }).catch(e => setErr(String(e.message || e)))
   }, [])
+
+  // 选择变化时记住（区服 + 模式）
+  useEffect(() => {
+    if (daqu) localStorage.setItem(SEL_KEY, JSON.stringify({ mode, daqu, server }))
+  }, [mode, daqu, server])
 
   useEffect(() => {
     const h = (e: MouseEvent) => { if (selRef.current && !selRef.current.contains(e.target as Node)) { setOpenDaqu(false); setOpenServer(false) } }
