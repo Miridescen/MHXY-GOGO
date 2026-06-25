@@ -14,14 +14,16 @@
   GET /api/item/{id}/servers   某物品各服最新价(含区服名/链接)
 """
 import os
+import re
 import sqlite3
 import datetime as dt
-from functools import lru_cache
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 DB = os.environ.get("CBG_DB", "/opt/cbg-data/prices.db")
+INGEST_TOKEN = os.environ.get("INGEST_TOKEN", "")   # 导入接口令牌(systemd 环境变量注入)
 
 app = FastAPI(title="狗脑发热 API", version="1.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -178,3 +180,52 @@ def item_servers(item_id: int):
                      "daqu": loc["area_name"] if loc else "", "server": loc["server_name"] if loc else ""})
     db.close()
     return {"item_id": item_id, "date": latest, "servers": rows}
+
+
+# ============ 令牌导入接口（爬虫爬完直接 POST 入库）============
+class IngestRow(BaseModel):
+    item: str
+    serverid: int
+    price_yuan: float
+    link: str = ""
+    eid: str = ""
+
+
+class IngestBody(BaseModel):
+    run_date: str               # YYYY-MM-DD
+    rows: list[IngestRow]
+
+
+def get_item_id(db, name):
+    db.execute("INSERT OR IGNORE INTO item(name) VALUES(?)", (name,))
+    return db.execute("SELECT id FROM item WHERE name=?", (name,)).fetchone()[0]
+
+
+@app.post("/api/ingest")
+def ingest(body: IngestBody, x_token: str = Header(default="")):
+    if not INGEST_TOKEN or x_token != INGEST_TOKEN:
+        raise HTTPException(401, "令牌无效")
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", body.run_date):
+        raise HTTPException(400, "run_date 格式应为 YYYY-MM-DD")
+    if not body.rows:
+        raise HTTPException(400, "rows 为空")
+    db = conn()
+    items = set()
+    data = []
+    for r in body.rows:
+        name = r.item.strip()
+        if not name:
+            continue
+        iid = get_item_id(db, name)
+        items.add(name)
+        data.append((iid, body.run_date, r.serverid, r.price_yuan, r.link, r.eid))
+    db.executemany("""INSERT INTO price_history(item_id,run_time,serverid,price_yuan,link,eid)
+        VALUES(?,?,?,?,?,?)
+        ON CONFLICT(item_id,run_time,serverid)
+        DO UPDATE SET price_yuan=excluded.price_yuan, link=excluded.link, eid=excluded.eid""", data)
+    db.commit()
+    total = db.execute("SELECT COUNT(*) FROM price_history").fetchone()[0]
+    db.close()
+    _cache["data"] = None   # 失效缓存，下次 overview 立即反映新数据
+    return {"ok": True, "inserted": len(data), "items": sorted(items),
+            "run_date": body.run_date, "total_rows": total}
