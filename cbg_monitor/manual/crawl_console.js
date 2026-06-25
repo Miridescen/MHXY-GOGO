@@ -23,6 +23,11 @@
   ];
   const DELAY_MIN = 1300, DELAY_RAND = 1300;  // 每次请求间隔 1.3~2.6 秒（账号安全，勿调太小）
   const REST_EVERY = 100, REST_MS = 20000;    // 每 100 次歇 20 秒
+  // 爬完自动入库接口（HTTPS）。令牌不写在代码里：首次运行弹窗输入，存本浏览器，之后免输。
+  const INGEST_URL = 'https://43-106-131-65.nip.io:8090/api/ingest';
+  const INGEST_TOKEN = localStorage.getItem('__ingest_token') ||
+    (function () { const t = (prompt('首次使用：请输入入库令牌（向管理员索取）') || '').trim();
+      if (t) localStorage.setItem('__ingest_token', t); return t; })();
   // =====================================================================
 
   if (!window.server_data) { alert('请在藏宝阁「召唤兽搜索」页运行（缺 server_data）'); return; }
@@ -55,10 +60,18 @@
     }
     return '﻿' + lines.join('\r\n');
   }
-  function showDownload() {
+  function totalCount() { let n = 0; Object.values(A.all).forEach(o => n += Object.keys(o).length); return n; }
+  function buildRows() {
+    const out = [];
+    for (const item of Object.keys(A.all))
+      for (const r of Object.values(A.all[item]))
+        out.push({ item, serverid: r.serverid, price_yuan: r.price_yuan,
+          link: 'https://xyq.cbg.163.com/equip?s=' + r.serverid + '&eid=' + r.eid, eid: r.eid });
+    return out;
+  }
+  function showDownload(prefix) {
     bar.style.background = '#188038'; bar.style.cursor = 'pointer';
-    let n = 0; Object.values(A.all).forEach(o => n += Object.keys(o).length);
-    bar.textContent = '✅ 完成！共 ' + n + ' 条 ｜ ⬇ 点此下载CSV (xunshou_' + today.replace(/-/g, '') + '.csv)';
+    bar.textContent = (prefix || '') + '⬇ 点此下载CSV (xunshou_' + today.replace(/-/g, '') + '.csv)';
     bar.onclick = () => {
       const blob = new Blob([buildCSV()], { type: 'text/csv;charset=utf-8' });
       const u = URL.createObjectURL(blob); const a = document.createElement('a');
@@ -66,13 +79,30 @@
       document.body.appendChild(a); a.click(); setTimeout(() => { a.remove(); URL.revokeObjectURL(u); }, 1500);
     };
   }
+  async function autoIngest() {
+    bar.style.background = '#1a73e8'; bar.style.cursor = 'default'; bar.onclick = null;
+    bar.textContent = '⏳ 自动入库中…（' + totalCount() + ' 条）';
+    try {
+      const r = await fetch(INGEST_URL, { method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Token': INGEST_TOKEN },
+        body: JSON.stringify({ run_date: today, rows: buildRows() }) });
+      const j = await r.json();
+      if (r.ok && j.ok) {
+        bar.style.background = '#188038';
+        bar.textContent = '✅ 已自动入库 ' + j.inserted + ' 条（' + today + '）｜网站 https://43-106-131-65.nip.io:8090/ 已更新';
+      } else { throw new Error(j.detail || ('HTTP ' + r.status)); }
+    } catch (e) {
+      bar.style.background = '#d8843a';
+      showDownload('⚠️ 自动入库失败(' + e.message + ')，改为手动：');
+    }
+  }
 
   window.__statusTimer = setInterval(() => {
     const c = n => Object.keys(A.all[n] || {}).length;
     const line = ITEMS.map(([n]) => n.slice(0, 2) + ' ' + c(n)).join(' | ');
     if (A.captcha) { bar.style.background = '#d93025'; bar.textContent = '⚠️ 验证码！请手动解后重新运行脚本 [' + line + ']'; clearInterval(window.__statusTimer); }
     else if (A.err) { bar.style.background = '#d93025'; bar.textContent = '⚠️ 登录过期，请重新登录后再运行 [' + line + ']'; clearInterval(window.__statusTimer); }
-    else if (!A.running) { clearInterval(window.__statusTimer); showDownload(); }
+    else if (!A.running) { clearInterval(window.__statusTimer); autoIngest(); }
     else { bar.style.background = '#1a73e8'; bar.textContent = '⏳ 爬取中 ' + A.reqCount + '/' + TARGET + ' ｜ 当前:' + (A.items[A.ci] ? A.items[A.ci][0] : '') + ' ｜ ' + line; }
   }, 1500);
 
