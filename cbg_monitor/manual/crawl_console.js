@@ -1,0 +1,102 @@
+/* ============================================================
+ * 藏宝阁全服比价 —— 浏览器控制台爬取脚本（任何电脑可用，不依赖 Claude）
+ *
+ * 用法：
+ *   1. Chrome 登录藏宝阁，打开「召唤兽搜索」页：
+ *      https://xyq.cbg.163.com/cgi-bin/equipquery.py?act=show_overall_search_pet
+ *   2. 按 F12 打开开发者工具 → Console(控制台)
+ *   3. 把本文件【全部内容】粘贴进去，回车
+ *   4. 顶部出现蓝色进度条，等它跑完（约 30~40 分钟）
+ *   5. 变绿后点「⬇ 下载CSV」按钮，CSV 存到「下载」文件夹
+ *   6. 按《操作手册》把 CSV 导到服务器
+ *
+ * 加物品：改下面 ITEMS 数组。type_ids 查法见《操作手册·附录》。
+ * 遇验证码：进度条变红 → 在藏宝阁随便搜一次手动解验证码 → 重新粘贴本脚本跑。
+ * ============================================================ */
+(function () {
+  // ====== 配置：要爬的物品（名字 + 藏宝阁类型ID，正常版，逗号分隔）======
+  const ITEMS = [
+    ['持国巡守', '102242,102245'],
+    ['广目巡守', '102337,102338'],
+    ['多闻巡守', '102339,102340'],
+    ['谛听',     '102399,102400'],
+  ];
+  const DELAY_MIN = 1300, DELAY_RAND = 1300;  // 每次请求间隔 1.3~2.6 秒（账号安全，勿调太小）
+  const REST_EVERY = 100, REST_MS = 20000;    // 每 100 次歇 20 秒
+  // =====================================================================
+
+  if (!window.server_data) { alert('请在藏宝阁「召唤兽搜索」页运行（缺 server_data）'); return; }
+  const sids = [...new Set([].concat(...Object.values(window.server_data).map(a => a[1].map(s => s[0]))))];
+  const today = (() => { const d = new Date(); const p = n => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); })();
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  const A = { items: ITEMS, all: {}, ci: 0, i: 0, reqCount: 0, errCount: 0, running: true, captcha: false, err: null };
+  ITEMS.forEach(([n]) => A.all[n] = {});
+  window.__crawl = A;
+
+  // 进度条
+  if (window.__statusTimer) clearInterval(window.__statusTimer);
+  const bar = document.getElementById('__statusBar') || document.createElement('div');
+  bar.id = '__statusBar';
+  bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:999999;padding:14px 20px;font:bold 17px/1.5 sans-serif;color:#fff;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.3)';
+  document.body.appendChild(bar);
+  const TARGET = sids.length * ITEMS.length;
+
+  function buildCSV() {
+    const esc = v => { v = (v == null ? '' : String(v)); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+    const lines = [['run_date', 'item', '大区', '服务器', 'serverid', '最低价(元)', '商品链接', 'eid'].join(',')];
+    for (const item of Object.keys(A.all)) {
+      const rows = Object.values(A.all[item]).sort((a, b) => a.price_yuan - b.price_yuan);
+      for (const r of rows) {
+        const link = 'https://xyq.cbg.163.com/equip?s=' + r.serverid + '&eid=' + r.eid;
+        lines.push([today, item, r.area_name, r.server_name, r.serverid, r.price_yuan.toFixed(2), link, r.eid].map(esc).join(','));
+      }
+    }
+    return '﻿' + lines.join('\r\n');
+  }
+  function showDownload() {
+    bar.style.background = '#188038'; bar.style.cursor = 'pointer';
+    let n = 0; Object.values(A.all).forEach(o => n += Object.keys(o).length);
+    bar.textContent = '✅ 完成！共 ' + n + ' 条 ｜ ⬇ 点此下载CSV (xunshou_' + today.replace(/-/g, '') + '.csv)';
+    bar.onclick = () => {
+      const blob = new Blob([buildCSV()], { type: 'text/csv;charset=utf-8' });
+      const u = URL.createObjectURL(blob); const a = document.createElement('a');
+      a.href = u; a.download = 'xunshou_' + today.replace(/-/g, '') + '.csv';
+      document.body.appendChild(a); a.click(); setTimeout(() => { a.remove(); URL.revokeObjectURL(u); }, 1500);
+    };
+  }
+
+  window.__statusTimer = setInterval(() => {
+    const c = n => Object.keys(A.all[n] || {}).length;
+    const line = ITEMS.map(([n]) => n.slice(0, 2) + ' ' + c(n)).join(' | ');
+    if (A.captcha) { bar.style.background = '#d93025'; bar.textContent = '⚠️ 验证码！请手动解后重新运行脚本 [' + line + ']'; clearInterval(window.__statusTimer); }
+    else if (A.err) { bar.style.background = '#d93025'; bar.textContent = '⚠️ 登录过期，请重新登录后再运行 [' + line + ']'; clearInterval(window.__statusTimer); }
+    else if (!A.running) { clearInterval(window.__statusTimer); showDownload(); }
+    else { bar.style.background = '#1a73e8'; bar.textContent = '⏳ 爬取中 ' + A.reqCount + '/' + TARGET + ' ｜ 当前:' + (A.items[A.ci] ? A.items[A.ci][0] : '') + ' ｜ ' + line; }
+  }, 1500);
+
+  (async () => {
+    for (A.ci = 0; A.ci < ITEMS.length && !A.captcha && !A.err; A.ci++) {
+      const [item, tids] = ITEMS[A.ci];
+      for (A.i = 0; A.i < sids.length; A.i++) {
+        const sid = sids[A.i];
+        const u = 'https://xyq.cbg.163.com/cgi-bin/recommend.py?act=recommd_by_role&search_type=pet&serverid=' + sid +
+          '&type=' + tids + '&page=1&count=15&order_by=price%20ASC&view_loc=equip_list';
+        let d; try { d = await (await fetch(u, { credentials: 'include' })).json(); }
+        catch (e) { A.errCount++; await sleep(2000); A.i--; continue; }
+        if (d.status === 1) { const it = (d.equip_list || [])[0];
+          if (it) A.all[item][sid] = { serverid: sid, server_name: it.server_name, area_name: it.area_name, price_yuan: Math.round(it.price) / 100, eid: it.eid };
+        } else if (d.status === 3 || /CAPTCHA/.test(d.status_code || '')) { A.captcha = true; break; }
+        else if (/SESSION/.test(d.status_code || '')) { A.err = 'SESSION'; break; }
+        else A.errCount++;
+        A.reqCount++;
+        await sleep(DELAY_MIN + Math.random() * DELAY_RAND);
+        if (A.reqCount % REST_EVERY === 0) await sleep(REST_MS);
+      }
+    }
+    A.running = false;
+  })();
+
+  return 'started: ' + ITEMS.length + ' 物品 × ' + sids.length + ' 服 = ' + TARGET + ' 次，日期 ' + today;
+})();
