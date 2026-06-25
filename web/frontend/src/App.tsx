@@ -26,7 +26,13 @@ const badgeOn: CSSProperties = { fontSize: 9.5, fontWeight: 700, color: '#fff', 
 type Mode = 'global' | 'server'
 
 interface Row {
-  it: Item; priceStr: string; serverLabel: string; sub: string; subColor: string
+  it: Item
+  price: string            // 主价格列：全服模式=全服最低价；本服模式=本服价格
+  priceHint: string        // 本服模式主价格下小字（本服无在售 / ✓本服即全服最低）；全服模式空
+  priceHintColor: string
+  loc: string              // 全服模式：所在区服（大区·服务器）
+  gLowPrice: string        // 本服模式：全服最低价
+  gLowLoc: string          // 本服模式：全服最低的 大区·服务器
   badge: string; showBadge: boolean; cbg: string
 }
 
@@ -84,41 +90,31 @@ export default function App() {
   const list = useMemo(() => (data?.items || []).filter(it => (cat === '全部' || it.cat === cat) && (!q || it.name.indexOf(q) !== -1)), [data, cat, q])
 
   const rows: Row[] = useMemo(() => list.map(it => {
+    const gLoc = `${it.low.daqu} · ${it.low.server}`
     if (isGlobal) {
-      return { it, priceStr: fmt(it.low.price), serverLabel: `${it.low.daqu} · ${it.low.server}`,
-        sub: '历史最低 ' + fmt(it.historyLow), subColor: '#a89878', badge: '全服最低', showBadge: true, cbg: it.low.link || CBG }
+      // 全服模式：主价格=全服最低价（去掉历史最低小字），右列=所在区服
+      return { it, price: fmt(it.low.price), priceHint: '', priceHintColor: '',
+        loc: gLoc, gLowPrice: '', gLowLoc: '', badge: '全服最低', showBadge: true, cbg: it.low.link || CBG }
     }
+    // 本服模式：主价格=本服价格；全服最低单独成列(价格+大区·服务器)
     const here = serverCell(it, curSid)
-    if (!here) {
-      return { it, priceStr: '—', serverLabel: `${daqu} · ${server}`,
-        sub: `本服无在售 · 全服最低 ${fmt(it.low.price)} @ ${it.low.server}`, subColor: '#a89878', badge: '', showBadge: false, cbg: it.low.link || CBG }
-    }
-    const cheaper = it.low.price < here.price
-    return { it, priceStr: fmt(here.price), serverLabel: `${daqu} · ${server}`,
-      sub: cheaper ? `全服最低 ${fmt(it.low.price)} @ ${it.low.server}` : '✓ 本服即全服最低',
-      subColor: cheaper ? '#c1452e' : '#3a7a5a', badge: cheaper ? '' : '全服最低', showBadge: !cheaper, cbg: here.link || CBG }
-  }), [list, isGlobal, curSid, daqu, server])
-
-  const hero = useMemo(() => {
-    if (!list.length) return null
-    if (isGlobal) {
-      let h = list[0]; list.forEach(it => { if (it.low.price < h.low.price) h = it })
-      return { icon: h.icon, name: h.name, cat: h.cat, badge: '全服最低', server: `${h.low.daqu} · ${h.low.server}`,
-        priceLabel: '全服最低价', price: fmt(h.low.price), history: fmt(h.historyLow), cbg: h.low.link || CBG }
-    }
-    let h: Item | null = null, min = Infinity, link = CBG
-    list.forEach(it => { const c = serverCell(it, curSid); if (c && c.price < min) { min = c.price; h = it; link = c.link || CBG } })
-    if (!h) return null
-    const hh = h as Item
-    return { icon: hh.icon, name: hh.name, cat: hh.cat, badge: '本服最低', server: `${daqu} · ${server}`,
-      priceLabel: '本服最低价', price: fmt(min), history: fmt(hh.historyLow), cbg: link }
-  }, [list, isGlobal, curSid, daqu, server])
+    const cheaper = !!here && it.low.price < here.price
+    return { it,
+      price: here ? fmt(here.price) : '—',
+      priceHint: !here ? '本服无在售' : (cheaper ? '' : '✓ 本服即全服最低'),
+      priceHintColor: '#3a7a5a',
+      loc: '',
+      gLowPrice: fmt(it.low.price), gLowLoc: gLoc,
+      badge: '全服最低', showBadge: !!here && !cheaper,
+      cbg: here ? (here.link || CBG) : (it.low.link || CBG) }
+  }), [list, isGlobal, curSid])
 
   if (err) return <div style={{ textAlign: 'center', padding: '80px 0', color: '#c1452e' }}>数据加载失败：{err}</div>
   if (!data) return <div style={{ textAlign: 'center', padding: '80px 0', color: '#b0a48c' }}>加载中…</div>
 
-  const heroTitle = isGlobal ? '全服最低价 · 全网扫描' : `本服速览 · ${server}`
   const priceColLabel = isGlobal ? '全服最低价' : '本服价格'
+  const col3Label = isGlobal ? '所在区服' : '全服最低'
+  const gridCols = isGlobal ? '2.7fr 1.3fr 1.5fr 1fr 1fr' : '2.4fr 1.2fr 1.9fr 1fr 1fr'
   const resultMeta = `共 ${rows.length} 件物品 · ${isGlobal ? '展示每件商品在所有区服的最低价' : `展示 ${server} 在售价格，并提示全服最低`}`
 
   return (
@@ -180,36 +176,8 @@ export default function App() {
           </div>
         </div>
 
-        {/* HERO */}
-        {hero && (
-          <div style={{ marginBottom: 22 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 13 }}>
-              <div className="serif" style={{ fontSize: 16, fontWeight: 900, color: '#c1452e', borderLeft: '3px solid #c1452e', paddingLeft: 10, letterSpacing: 1 }}>{heroTitle}</div>
-              <div style={{ fontSize: 11, color: '#b0a48c' }}>数据更新于 {data.generated_at}</div>
-            </div>
-            <div style={S.heroCard}>
-              <div style={{ position: 'absolute', top: -40, right: -30, width: 200, height: 200, border: '1px solid rgba(193,69,46,.35)', borderRadius: '50%' }} />
-              <div style={{ position: 'absolute', top: -15, right: 10, width: 150, height: 150, border: '1px solid rgba(193,69,46,.25)', borderRadius: '50%' }} />
-              <div style={{ display: 'flex', alignItems: 'center', gap: 18, position: 'relative', minWidth: 240 }}>
-                <div className="serif" style={{ width: 66, height: 66, borderRadius: 13, background: '#c1452e', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, fontWeight: 900, flexShrink: 0 }}>{hero.icon}</div>
-                <div>
-                  <div className="serif" style={{ fontSize: 20, fontWeight: 800, letterSpacing: .5 }}>{hero.name}</div>
-                  <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 11, background: 'rgba(250,240,224,.14)', padding: '3px 10px', borderRadius: 4 }}>{hero.cat}</span>
-                    <span style={{ fontSize: 11, background: '#c1452e', padding: '3px 10px', borderRadius: 4 }}>{hero.badge}</span>
-                  </div>
-                  <div style={{ fontSize: 12, opacity: .78, marginTop: 11 }}>所在区服：{hero.server}</div>
-                </div>
-              </div>
-              <div style={{ textAlign: 'right', position: 'relative' }}>
-                <div style={{ fontSize: 11, opacity: .7 }}>{hero.priceLabel}</div>
-                <div className="serif" style={{ fontSize: 40, fontWeight: 900, lineHeight: 1.1, color: '#f0b88a' }}>{hero.price}</div>
-                <div style={{ fontSize: 11, opacity: .7, margin: '4px 0 12px' }}>历史最低 {hero.history}</div>
-                <a href={hero.cbg} target="_blank" rel="noopener" style={{ display: 'inline-block', background: '#c1452e', color: '#fff', textDecoration: 'none', padding: '10px 20px', borderRadius: 8, fontSize: 13.5, fontWeight: 800 }}>去藏宝阁 ↗</a>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* 数据更新时间 */}
+        <div style={{ fontSize: 11.5, color: '#b0a48c', marginBottom: 14 }}>数据更新于 {data.generated_at}</div>
 
         {/* chips */}
         <div style={{ display: 'flex', gap: 9, marginBottom: 14, flexWrap: 'wrap' }}>
@@ -232,11 +200,11 @@ export default function App() {
             {/* DESKTOP TABLE */}
             <div className="tableWrap">
               <div style={{ background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 14, overflow: 'hidden' }}>
-                <div style={S.tableHd}>
-                  <div>物品</div><div>{priceColLabel}</div><div>所在区服</div><div>价格趋势</div><div style={{ textAlign: 'right' }}>操作</div>
+                <div style={{ ...S.tableHd, gridTemplateColumns: gridCols }}>
+                  <div>物品</div><div>{priceColLabel}</div><div>{col3Label}</div><div>价格趋势</div><div style={{ textAlign: 'right' }}>操作</div>
                 </div>
                 {rows.map(r => (
-                  <div key={r.it.id} style={S.tableRow}>
+                  <div key={r.it.id} style={{ ...S.tableRow, gridTemplateColumns: gridCols }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
                       <div style={{ width: 42, height: 42, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 16, flexShrink: 0, background: r.it.iconBg, color: r.it.iconFg }}>{r.it.icon}</div>
                       <div>
@@ -244,11 +212,18 @@ export default function App() {
                         <div style={{ fontSize: 11, color: '#a89878', marginTop: 3 }}>{r.it.cat}</div>
                       </div>
                     </div>
+                    {/* 主价格列 */}
                     <div>
-                      <div className="serif" style={{ fontSize: 18, fontWeight: 900, color: '#2a221a' }}>{r.priceStr}</div>
-                      <div style={{ fontSize: 10.5, marginTop: 2, color: r.subColor }}>{r.sub}</div>
+                      <div className="serif" style={{ fontSize: 18, fontWeight: 900, color: '#2a221a' }}>{r.price}</div>
+                      {r.priceHint && <div style={{ fontSize: 10.5, marginTop: 2, color: r.priceHintColor }}>{r.priceHint}</div>}
                     </div>
-                    <div style={{ fontSize: 13, color: '#6a5a44' }}>{r.serverLabel}</div>
+                    {/* 第三列：全服=所在区服；本服=全服最低(价格+大区·服务器) */}
+                    {isGlobal
+                      ? <div style={{ fontSize: 13, color: '#6a5a44' }}>{r.loc}</div>
+                      : <div>
+                          <div className="serif" style={{ fontSize: 16, fontWeight: 900, color: '#c1452e' }}>{r.gLowPrice}</div>
+                          <div style={{ fontSize: 11, color: '#a89878', marginTop: 2 }}>{r.gLowLoc}</div>
+                        </div>}
                     <div><Trend points={r.it.points} color={r.it.trendColor} /></div>
                     <div style={{ textAlign: 'right' }}>
                       <a href={r.cbg} target="_blank" rel="noopener" style={{ display: 'inline-block', background: '#fbeee8', color: '#a8351f', textDecoration: 'none', border: '1px solid #ecccc2', padding: '7px 13px', borderRadius: 7, fontSize: 12, fontWeight: 700 }}>去购买 ↗</a>
@@ -266,13 +241,19 @@ export default function App() {
                     <div style={{ width: 46, height: 46, borderRadius: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 18, flexShrink: 0, background: r.it.iconBg, color: r.it.iconFg }}>{r.it.icon}</div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 7 }}>{r.it.name} {r.showBadge && <span style={badgeOn}>{r.badge}</span>}</div>
-                      <div style={{ fontSize: 11, color: '#a89878', marginTop: 3 }}>{r.serverLabel}</div>
+                      <div style={{ fontSize: 11, color: '#a89878', marginTop: 3 }}>{isGlobal ? r.loc : r.it.cat}</div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                      <div className="serif" style={{ fontSize: 19, fontWeight: 900, color: '#2a221a' }}>{r.priceStr}</div>
-                      <div style={{ fontSize: 10, marginTop: 2, color: r.subColor }}>{r.sub}</div>
+                      <div className="serif" style={{ fontSize: 19, fontWeight: 900, color: '#2a221a' }}>{r.price}</div>
+                      {r.priceHint && <div style={{ fontSize: 10, marginTop: 2, color: r.priceHintColor }}>{r.priceHint}</div>}
                     </div>
                   </div>
+                  {!isGlobal && (
+                    <div style={{ marginTop: 10, fontSize: 12, color: '#6a5a44', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      全服最低 <span className="serif" style={{ fontWeight: 900, color: '#c1452e', fontSize: 14 }}>{r.gLowPrice}</span>
+                      <span style={{ color: '#a89878' }}>· {r.gLowLoc}</span>
+                    </div>
+                  )}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, paddingTop: 12, borderTop: '1px solid #f0e7d6' }}>
                     <Trend points={r.it.points} color={r.it.trendColor} w={72} />
                     <a href={r.cbg} target="_blank" rel="noopener" style={{ background: '#c1452e', color: '#fff', textDecoration: 'none', padding: '9px 18px', borderRadius: 8, fontSize: 12.5, fontWeight: 800 }}>去藏宝阁购买 ↗</a>
