@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { fetchOverview, fmt, serveridOf, serverCell, type Overview, type Item, type Region, type Roles, type RoleClothes } from './api'
+import { fetchOverview, fmt, serveridOf, serverCell, type Overview, type Item, type Region, type Roles, type RoleCell } from './api'
 
 const CBG = 'https://xyq.cbg.163.com/'
 const CATS = ['全部', '装备', '宝宝', '灵饰', '内丹', '锦衣', '材料']
@@ -41,20 +41,25 @@ function Trend({ points, color, w = 64 }: { points: string; color: string; w?: n
 }
 
 // 角色+限量锦衣：选锦衣 → 看 性别×等级 全服最低价
-function RoleClothesView({ rc }: { rc: RoleClothes }) {
+// 角色携带物（锦衣/坐骑）通用：先选物品，再看 性别×等级 矩阵
+function RoleCarryView({ title, items, rc }: {
+  title: string
+  items: string[]
+  rc: { date: string | null; genders: string[]; levels: string[]; matrix: Record<string, Record<string, Record<string, RoleCell>>> }
+}) {
   const [sel, setSel] = useState('')
-  if (!rc || !rc.date || !rc.clothes.length) return null
-  const cur = sel && rc.matrix[sel] ? sel : rc.clothes[0]
+  if (!rc || !rc.date || !items.length) return null
+  const cur = sel && rc.matrix[sel] ? sel : items[0]
   const m = rc.matrix[cur] || {}
   const hd: CSSProperties = { padding: '10px 14px', fontSize: 12, fontWeight: 700, color: '#b0a48c', textAlign: 'left', borderBottom: '1px solid #ece2cf', background: '#f7efe2' }
   const cell: CSSProperties = { padding: '11px 14px', borderTop: '1px solid #f0e7d6', whiteSpace: 'nowrap' }
   return (
     <div style={{ marginBottom: 24 }}>
       <div className="serif" style={{ fontSize: 16, fontWeight: 900, color: '#c1452e', borderLeft: '3px solid #c1452e', paddingLeft: 10, letterSpacing: 1, marginBottom: 12 }}>
-        角色 + 七夕限量锦衣 · 全服最低价
+        {title}
       </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-        {rc.clothes.map(c => (
+        {items.map(c => (
           <button key={c} onClick={() => setSel(c)}
             style={{ fontSize: 12.5, fontWeight: 600, padding: '6px 13px', borderRadius: 6, cursor: 'pointer', border: '1px solid transparent', ...(c === cur ? { color: '#fff', background: '#c1452e' } : { color: '#6a5a44', background: '#f5ecdd' }) }}>{c}</button>
         ))}
@@ -273,7 +278,8 @@ export default function App() {
 
         {/* 角色价格（仅全服模式）：境界矩阵 + 限量锦衣 */}
         {isGlobal && <RoleMatrix roles={data.roles} />}
-        {isGlobal && <RoleClothesView rc={data.roleClothes} />}
+        {isGlobal && <RoleCarryView title="角色 + 七夕限量锦衣 · 全服最低价" items={data.roleClothes.clothes} rc={data.roleClothes} />}
+        {isGlobal && <RoleCarryView title="角色 + 限量坐骑 · 全服最低价" items={data.roleMounts.mounts} rc={data.roleMounts} />}
 
         {/* chips */}
         <div style={{ display: 'flex', gap: 9, marginBottom: 14, flexWrap: 'wrap' }}>

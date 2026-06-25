@@ -114,10 +114,12 @@ def build_overview():
         })
     roles = build_roles(db)
     role_clothes = build_role_clothes(db)
+    role_mounts = build_role_mounts(db)
     db.close()
     last = max((i["latestDate"] for i in items), default=None)
     return {"generated_at": last or "", "served_at": dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
-            "regions": regions_list, "items": items, "roles": roles, "roleClothes": role_clothes}
+            "regions": regions_list, "items": items, "roles": roles,
+            "roleClothes": role_clothes, "roleMounts": role_mounts}
 
 
 ROLE_CATS = ["飞升", "渡劫", "175级", "化圣"]               # 展示顺序
@@ -126,7 +128,8 @@ ROLE_AGES = [{"code": 1, "name": "1年内"}, {"code": 2, "name": "1到3年"}, {"
 
 CLOTHES_ORDER = ["青花瓷", "青花瓷.墨黑", "青花瓷.月白", "冰寒绡", "冰寒绡.月白", "冰寒绡.墨黑",
                  "落星织", "云龙梦", "云龙梦.月白", "云龙梦.墨黑", "浪淘纱", "浪淘纱·月白", "浪淘纱·墨黑",
-                 "纤云纱", "纤云纱·月白", "纤云纱·墨黑", "水云归", "水云归·月白", "水云归·墨黑"]
+                 "纤云纱", "纤云纱·月白", "纤云纱·墨黑", "水云归", "水云归·月白", "水云归·墨黑", "潮汐帆板"]
+MOUNTS_ORDER = ["天使猪猪", "九尾冰狐"]
 CLOTHES_GENDERS = ["男", "女"]
 CLOTHES_LEVELS = ["不限", "69", "109", "飞升", "渡劫", "175", "化圣"]
 
@@ -153,18 +156,31 @@ def build_roles(db):
     return {"date": latest, "categories": ROLE_CATS, "ages": ROLE_AGES, "matrix": matrix}
 
 
-def build_role_clothes(db):
-    """限量锦衣组：{锦衣: {性别: {等级: cell}}}，前端按锦衣筛选看 性别×等级。"""
+def _carry_matrix(db, grp, cond_key, order):
+    """角色携带物组通用：{物品: {性别: {等级: cell}}}。返回 (最新日期, 有数据的物品序, matrix)。"""
     matrix, latest = {}, None
-    for q in db.execute("SELECT id, conditions FROM role_query WHERE enabled=1 AND grp='锦衣'"):
+    for q in db.execute("SELECT id, conditions FROM role_query WHERE enabled=1 AND grp=?", (grp,)):
         cond = json.loads(q["conditions"])
         rt, cell = _latest_cell(db, q["id"])
         if not cell:
             continue
         latest = max(latest or "", rt)
-        matrix.setdefault(cond.get("锦衣"), {}).setdefault(cond.get("性别"), {})[cond.get("等级")] = cell
-    clothes = [c for c in CLOTHES_ORDER if c in matrix]
+        matrix.setdefault(cond.get(cond_key), {}).setdefault(cond.get("性别"), {})[cond.get("等级")] = cell
+    keys = [k for k in order if k in matrix]
+    return latest, keys, matrix
+
+
+def build_role_clothes(db):
+    """限量锦衣组：{锦衣: {性别: {等级: cell}}}，前端按锦衣筛选看 性别×等级。"""
+    latest, clothes, matrix = _carry_matrix(db, "锦衣", "锦衣", CLOTHES_ORDER)
     return {"date": latest, "clothes": clothes, "genders": CLOTHES_GENDERS,
+            "levels": CLOTHES_LEVELS, "matrix": matrix}
+
+
+def build_role_mounts(db):
+    """限量坐骑组：{坐骑: {性别: {等级: cell}}}，结构同锦衣。"""
+    latest, mounts, matrix = _carry_matrix(db, "坐骑", "坐骑", MOUNTS_ORDER)
+    return {"date": latest, "mounts": mounts, "genders": CLOTHES_GENDERS,
             "levels": CLOTHES_LEVELS, "matrix": matrix}
 
 

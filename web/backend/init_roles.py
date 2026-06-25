@@ -7,9 +7,10 @@
   role_query(grp, name, conditions, api_params, enabled)   grp 分组便于网站分块展示
   role_price_history(query_id, run_time, price_yuan, ...)
 
-两组：
+三组：
   境界组(grp=境界)：类别(飞升/渡劫/175级/化圣) × 开服年限(1年内/1到3年/3年以上) = 12
-  锦衣组(grp=锦衣)：性别(男/女) × 等级(69/109/飞升/渡劫/175/化圣) × 限量锦衣(19) = 228
+  锦衣组(grp=锦衣)：性别(男/女) × 等级(不限/69/109/飞升/渡劫/175/化圣,7) × 限量锦衣(20) = 280
+  坐骑组(grp=坐骑)：性别 × 等级(同上7) × 限量坐骑(天使猪猪/九尾冰狐,2) = 28
 
 用法： python3 init_roles.py
 """
@@ -43,7 +44,10 @@ CLOTHES = [  # 锦衣名 → limit_clothes 编码（图2红框内 19 个）
     ("浪淘纱", 42196), ("浪淘纱·月白", 42198), ("浪淘纱·墨黑", 42200),
     ("纤云纱", 40285), ("纤云纱·月白", 40287), ("纤云纱·墨黑", 13029),
     ("水云归", 42560), ("水云归·月白", 42562), ("水云归·墨黑", 42564),
+    ("潮汐帆板", 14410),
 ]
+# ---- 坐骑组（限量祥瑞）----  xiangrui_list 用坐骑名字本身做值
+MOUNTS = [("天使猪猪", "天使猪猪"), ("九尾冰狐", "九尾冰狐")]
 
 
 def upsert(c, grp, name, conditions, api_params):
@@ -78,8 +82,15 @@ def main():
                 upsert(c, "锦衣", f"{cloth}·{sexname}·{lvl}",
                        {"锦衣": cloth, "性别": sexname, "等级": lvl},
                        {"limit_clothes": cv, "sex": sexcode, **lp})
+    # 坐骑组（结构同锦衣，仅接口参数换成 xiangrui_list）
+    for mount, mv in MOUNTS:
+        for sexname, sexcode in SEX:
+            for lvl, lp in LEVELS:
+                upsert(c, "坐骑", f"{mount}·{sexname}·{lvl}",
+                       {"坐骑": mount, "性别": sexname, "等级": lvl},
+                       {"xiangrui_list": mv, "sex": sexcode, **lp})
     db.commit()
-    for g in ("境界", "锦衣"):
+    for g in ("境界", "锦衣", "坐骑"):
         print(g, "组:", c.execute("SELECT COUNT(*) FROM role_query WHERE grp=?", (g,)).fetchone()[0], "条")
     print("合计:", c.execute("SELECT COUNT(*) FROM role_query").fetchone()[0])
 
