@@ -1,4 +1,4 @@
-import { View, Text, Image, ScrollView, Input, Picker } from '@tarojs/components'
+import { View, Text, Image, ScrollView, Picker } from '@tarojs/components'
 import Taro, { usePullDownRefresh } from '@tarojs/taro'
 import { useEffect, useMemo, useState } from 'react'
 import logo from '../../images/logo.png'
@@ -21,6 +21,7 @@ function CarryView({ title, items, data }: { title: string; items: string[]; dat
   return (
     <View className='block'>
       <View className='blockTitle'>{title}</View>
+      <View className='tip'>👆 点价格可复制藏宝阁链接，去藏宝阁查看</View>
       <ScrollView scrollX className='chips'>
         {items.map(c => (
           <Text key={c} className={'chip ' + (c === cur ? 'chipOn' : '')} onClick={() => setSel(c)}>{c}</Text>
@@ -40,7 +41,7 @@ function CarryView({ title, items, data }: { title: string; items: string[]; dat
                 return (
                   <View key={l} className='mCell' onClick={() => c && copyLink(c.link)}>
                     {c
-                      ? <View><Text className='price'>{fmt(c.price)}</Text><View className='loc'>{c.daqu}·{c.server}</View></View>
+                      ? <View><Text className='price'>{fmt(c.price)}</Text><View className='loc'>{c.daqu}·{c.server} ↗</View></View>
                       : <Text className='dash'>—</Text>}
                   </View>
                 )
@@ -61,7 +62,6 @@ export default function Index() {
   const [regionIdx, setRegionIdx] = useState(0)
   const [serverIdx, setServerIdx] = useState(0)
   const [cat, setCat] = useState('全部')
-  const [q, setQ] = useState('')
   const [unlocked, setUnlocked] = useState(false)
 
   // 每天看一次广告解锁，当天免广告
@@ -129,8 +129,8 @@ export default function Index() {
   const switchMode = (md: 'global' | 'server') => { setMode(md); persist(regionIdx, serverIdx, md) }
 
   const list = useMemo(() => (ov?.items || []).filter(
-    it => (cat === '全部' || it.cat === cat) && (!q || it.name.indexOf(q) !== -1)
-  ), [ov, cat, q])
+    it => cat === '全部' || it.cat === cat
+  ), [ov, cat])
 
   if (loading) return <View className='center'>加载中…</View>
   if (err) return <View className='center err'>数据加载失败：{err}</View>
@@ -143,7 +143,7 @@ export default function Index() {
         <Image className='logo' src={logo} mode='aspectFill' />
         <View className='brand'>
           <Text className='brandName'>狗脑发热</Text>
-          <Text className='brandSub'>藏宝阁 · 全服比价行</Text>
+          <Text className='brandSub'>藏宝阁 · 全服比价</Text>
         </View>
         <Picker mode='multiSelector' range={[daquNames, serverNames]} value={[regionIdx, serverIdx]}
           onColumnChange={onColumnChange} onChange={onPickChange}>
@@ -177,6 +177,7 @@ export default function Index() {
       {isGlobal && ov.roles && ov.roles.date && (
         <View className='block'>
           <View className='blockTitle'>角色全服最低价 · 按开服年限</View>
+          <View className='tip'>👆 点价格可复制藏宝阁链接，去藏宝阁查看</View>
           <ScrollView scrollX className='matrixWrap'>
             <View className='matrix'>
               <View className='mRow mHead'>
@@ -191,7 +192,7 @@ export default function Index() {
                     return (
                       <View key={a.code} className='mCell' onClick={() => cell && copyLink(cell.link)}>
                         {cell
-                          ? <View><Text className='price'>{fmt(cell.price)}</Text><View className='loc'>{cell.daqu}·{cell.server}</View></View>
+                          ? <View><Text className='price'>{fmt(cell.price)}</Text><View className='loc'>{cell.daqu}·{cell.server} ↗</View></View>
                           : <Text className='dash'>—</Text>}
                       </View>
                     )
@@ -211,13 +212,6 @@ export default function Index() {
           <Text key={c} className={'chip ' + (c === cat ? 'chipOn' : '')} onClick={() => setCat(c)}>{c}</Text>
         ))}
       </ScrollView>
-
-      {/* 搜索 */}
-      <View className='search'>
-        <Text className='searchIcon'>⌕</Text>
-        <Input className='searchInput' value={q} placeholder='搜索物品名，如 持国 / 谛听 / 须弥'
-          onInput={e => setQ(e.detail.value)} />
-      </View>
 
       <View className='meta'>
         共 {list.length} 件物品 · {isGlobal ? '展示每件在所有区服的最低价' : `展示 ${curServer ? curServer.name : ''} 在售价，并提示全服最低`}
