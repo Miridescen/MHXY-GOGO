@@ -6,9 +6,12 @@
  *      https://xyq.cbg.163.com/cgi-bin/equipquery.py?act=show_overall_search_pet
  *   2. 按 F12 打开开发者工具 → Console(控制台)
  *   3. 把本文件【全部内容】粘贴进去，回车
- *   4. 顶部出现蓝色进度条，等它跑完（约 30~40 分钟）
- *   5. 变绿后点「⬇ 下载CSV」按钮，CSV 存到「下载」文件夹
- *   6. 按《操作手册》把 CSV 导到服务器
+ *   4. 顶部出现进度条，分两段自动跑完（全程约 40 分钟，期间别关页面）：
+ *        · 蓝色 = 召唤兽（约 30~40 分钟）→ 自动入库
+ *        · 紫色 = 角色/锦衣/坐骑价格（约 6 分钟，显示 当前/总数）→ 自动入库
+ *        · 变绿 = 「✅ 全部完成」，网站已自动更新，无需再做任何事
+ *   5. 若进度条变红：蓝/紫段遇验证码 → 在藏宝阁随便搜一次手动解码 → 重新粘贴脚本跑
+ *   6. （仅自动入库失败时）才会出现「⬇ 下载CSV」按钮，按《操作手册》手动导库
  *
  * 加物品：改下面 ITEMS 数组。type_ids 查法见《操作手册·附录》。
  * 遇验证码：进度条变红 → 在藏宝阁随便搜一次手动解验证码 → 重新粘贴本脚本跑。
@@ -83,20 +86,31 @@
     };
   }
   // 角色价格：跨服搜 role_query 里的每个组合，取全服最低价 → 入库（数据驱动，新增query自动爬）
+  // 返回：>=0 入库条数；-1 接口/网络失败；-2 遇验证码（进度条已变红提示，调用方应直接 return）
   async function crawlRoles() {
     try {
       const queries = await (await fetch(ROLE_QUERIES_URL)).json();
       const rows = [];
-      for (const q of queries) {
+      const total = queries.length;
+      for (let i = 0; i < total; i++) {
+        const q = queries[i];
         const p = new URLSearchParams({ act: 'recommd_by_role', search_type: 'overall_search_role', page: '1', count: '5', order_by: 'price ASC', view_loc: 'overall_search' });
         for (const k in q.api_params) p.set(k, q.api_params[k]);
         try {
           const d = await (await fetch('https://xyq.cbg.163.com/cgi-bin/recommend.py?' + p, { credentials: 'include' })).json();
+          if (d.status === 3 || /CAPTCHA/.test(d.status_code || '')) {   // 验证码：停下提示，已采集的不入库
+            bar.style.background = '#d93025'; bar.style.cursor = 'default'; bar.onclick = null;
+            bar.textContent = '⚠️ 角色爬取遇验证码（已完成 ' + i + '/' + total + '）！请在藏宝阁手动搜一次解验证码，再重跑脚本';
+            return -2;
+          }
           const it = (d.equip_list || [])[0];
           if (d.status === 1 && it) rows.push({ query_id: q.id, price_yuan: Math.round(it.price) / 100, serverid: it.serverid, server_name: it.server_name, area_name: it.area_name, eid: it.eid, link: 'https://xyq.cbg.163.com/equip?s=' + it.serverid + '&eid=' + it.eid });
-        } catch (e) { /* 跳过 */ }
+        } catch (e) { /* 单条失败跳过 */ }
+        bar.style.background = '#7b3fb0';   // 角色段用紫色，和召唤兽段(蓝)区分
+        bar.textContent = '⏳ 角色价格 ' + (i + 1) + '/' + total + ' ｜ 当前:' + (q.name || '') + ' ｜ 已采 ' + rows.length;
         await new Promise(r => setTimeout(r, 1000));
       }
+      bar.textContent = '⏳ 角色价格入库中…（' + rows.length + ' 条）';
       const res = await fetch(INGEST_ROLE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Token': INGEST_TOKEN }, body: JSON.stringify({ run_date: today, rows }) });
       const j = await res.json();
       return j.ok ? j.inserted : -1;
@@ -113,6 +127,7 @@
       if (r.ok && j.ok) {
         bar.textContent = '✅ 召唤兽入库 ' + j.inserted + ' 条，继续爬角色价格…';
         const rn = await crawlRoles();
+        if (rn === -2) return;   // 验证码：进度条已是红色提示，保持不动
         bar.style.background = '#188038';
         bar.textContent = '✅ 全部完成！召唤兽 ' + j.inserted + ' + 角色 ' + (rn >= 0 ? rn : '失败') + ' 条（' + today + '）｜网站已更新';
       } else { throw new Error(j.detail || ('HTTP ' + r.status)); }
