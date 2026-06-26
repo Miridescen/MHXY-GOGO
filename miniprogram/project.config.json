@@ -1,0 +1,19 @@
+{
+  "miniprogramRoot": "dist/",
+  "projectname": "gounao-cbg",
+  "description": "狗脑发热 · 藏宝阁全服比价",
+  "appid": "你的微信AppID替换这里",
+  "compileType": "miniprogram",
+  "setting": {
+    "urlCheck": false,
+    "es6": false,
+    "enhance": false,
+    "postcss": false,
+    "minified": false,
+    "babelSetting": {
+      "ignore": [],
+      "disablePlugins": [],
+      "outputPath": ""
+    }
+  }
+}

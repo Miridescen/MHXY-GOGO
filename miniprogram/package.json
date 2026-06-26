@@ -1,0 +1,40 @@
+{
+  "name": "gounao-cbg",
+  "version": "1.0.0",
+  "private": true,
+  "description": "狗脑发热 · 藏宝阁全服比价 小程序",
+  "templateInfo": { "name": "default", "typescript": true, "css": "sass", "framework": "react" },
+  "scripts": {
+    "build:weapp": "taro build --type weapp",
+    "dev:weapp": "taro build --type weapp --watch",
+    "build:tt": "taro build --type tt",
+    "dev:tt": "taro build --type tt --watch"
+  },
+  "browserslist": ["last 3 versions", "Android >= 4.1", "ios >= 8"],
+  "dependencies": {
+    "@babel/runtime": "^7.21.5",
+    "@tarojs/components": "3.6.34",
+    "@tarojs/helper": "3.6.34",
+    "@tarojs/plugin-framework-react": "3.6.34",
+    "@tarojs/plugin-platform-weapp": "3.6.34",
+    "@tarojs/plugin-platform-tt": "3.6.34",
+    "@tarojs/react": "3.6.34",
+    "@tarojs/runtime": "3.6.34",
+    "@tarojs/shared": "3.6.34",
+    "@tarojs/taro": "3.6.34",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.8.0",
+    "@pmmmwh/react-refresh-webpack-plugin": "^0.5.5",
+    "@tarojs/cli": "3.6.34",
+    "@tarojs/webpack5-runner": "3.6.34",
+    "@types/react": "^18.0.0",
+    "@types/webpack-env": "^1.13.6",
+    "babel-preset-taro": "3.6.34",
+    "react-refresh": "^0.11.0",
+    "typescript": "^4.9.0",
+    "webpack": "5.78.0"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "miniprogramRoot": "dist/",
+  "projectname": "gounao-cbg",
+  "appid": "你的抖音AppID替换这里",
+  "setting": {
+    "urlCheck": false,
+    "es6": false,
+    "postcss": false,
+    "minified": false
+  }
+}
