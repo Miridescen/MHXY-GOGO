@@ -33,6 +33,7 @@
 /* 矩阵 */
 .matrixWrap { background: #fdfaf3; border: 1px solid #ece2cf; border-radius: 20px; overflow: hidden; font-size: 0; }
 .matrix { display: inline-block; min-width: 100%; vertical-align: top; }
+.matrixFit { display: flex; flex-direction: column; width: 100%; }
 .mRow { display: flex; }
 .mHead { background: #f7efe2; }
 .mCell { width: 200px; flex-shrink: 0; padding: 18px 16px; font-size: 22px; color: #6a5a44; border-top: 1px solid #f0e7d6; box-sizing: border-box; }

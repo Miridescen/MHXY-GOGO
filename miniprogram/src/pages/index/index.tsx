@@ -178,8 +178,8 @@ export default function Index() {
         <View className='block'>
           <View className='blockTitle'>角色全服最低价 · 按开服年限</View>
           <View className='tip'>👆 点价格可复制藏宝阁链接，去藏宝阁查看</View>
-          <ScrollView scrollX className='matrixWrap'>
-            <View className='matrix'>
+          <View className='matrixWrap'>
+            <View className='matrix matrixFit'>
               <View className='mRow mHead'>
                 <View className='mCell mFirst'>类别</View>
                 {ov.roles.ages.map(a => <View key={a.code} className='mCell'>{a.name}</View>)}
@@ -200,7 +200,7 @@ export default function Index() {
                 </View>
               ))}
             </View>
-          </ScrollView>
+          </View>
         </View>
       )}
       {isGlobal && <CarryView title='角色 + 七夕限量锦衣 · 全服最低价' items={ov.roleClothes.clothes} data={ov.roleClothes} />}
