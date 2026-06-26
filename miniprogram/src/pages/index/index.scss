@@ -6,7 +6,7 @@
 
 /* 头部 */
 .header { display: flex; align-items: center; margin-bottom: 24px; }
-.logo { width: 84px; height: 84px; border-radius: 18px; box-shadow: 0 6px 16px rgba(120,70,160,.3); }
+.logo { width: 84px; height: 84px; border-radius: 18px; box-shadow: 0 6px 16px rgba(160,80,40,.25); }
 .brand { margin-left: 18px; flex: 1; }
 .brandName { display: block; font-size: 36px; font-weight: 900; letter-spacing: 3px; color: #2a221a; }
 .brandSub { display: block; font-size: 20px; color: #c1452e; font-weight: 700; letter-spacing: 2px; margin-top: 6px; }
@@ -67,3 +67,12 @@
 .copyHint { margin-top: 16px; padding-top: 16px; border-top: 1px solid #f0e7d6; font-size: 21px; color: #a8351f; text-align: right; }
 
 .foot { margin-top: 40px; text-align: center; font-size: 20px; color: #c0b49c; line-height: 1.8; white-space: pre-line; }
+
+/* 广告解锁门 */
+.gate { margin-top: 60px; padding: 60px 40px; background: #fdfaf3; border: 1px solid #ece2cf; border-radius: 28px; text-align: center; }
+.gateLogo { width: 150px; height: 150px; border-radius: 30px; box-shadow: 0 8px 24px rgba(160,80,40,.25); }
+.gateTitle { font-size: 34px; font-weight: 900; color: #2a221a; margin-top: 32px; letter-spacing: 2px; }
+.gateDesc { font-size: 24px; color: #a89878; margin-top: 16px; }
+.gateBtn { display: inline-block; margin-top: 44px; background: #c1452e; color: #fff; font-size: 30px; font-weight: 800; padding: 24px 64px; border-radius: 60px; box-shadow: 0 8px 20px rgba(193,69,46,.3); }
+.gateBtn:active { opacity: .85; }
+.gateTip { font-size: 21px; color: #b0a48c; margin-top: 28px; }

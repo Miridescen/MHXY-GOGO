@@ -6,6 +6,7 @@ import {
   fetchOverview, fmt, copyLink,
   type Overview, type Carry
 } from '../../utils/api'
+import { showRewardAd } from '../../utils/ad'
 import './index.scss'
 
 const CATS = ['全部', '装备', '宝宝', '灵饰', '内丹', '锦衣', '材料']
@@ -61,6 +62,19 @@ export default function Index() {
   const [serverIdx, setServerIdx] = useState(0)
   const [cat, setCat] = useState('全部')
   const [q, setQ] = useState('')
+  const [unlocked, setUnlocked] = useState(false)
+
+  // 每天看一次广告解锁，当天免广告
+  const today = (() => { const d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate() })()
+  useEffect(() => {
+    if (Taro.getStorageSync('mhxy_unlock_date') === today) setUnlocked(true)
+  }, [])
+  const onUnlock = () => {
+    showRewardAd().then(ok => {
+      if (ok) { setUnlocked(true); Taro.setStorageSync('mhxy_unlock_date', today) }
+      else Taro.showToast({ title: '需看完广告才能解锁哦', icon: 'none' })
+    })
+  }
 
   const load = (pull?: boolean) => {
     setLoading(true); setErr('')
@@ -139,6 +153,18 @@ export default function Index() {
         </Picker>
       </View>
 
+      {/* 广告解锁门：没解锁只显示这块 */}
+      {!unlocked && (
+        <View className='gate'>
+          <Image className='gateLogo' src={logo} mode='aspectFill' />
+          <View className='gateTitle'>看一段广告，解锁全服比价</View>
+          <View className='gateDesc'>召唤兽 · 角色 · 锦衣 · 坐骑 全服最低价，每日更新</View>
+          <View className='gateBtn' onClick={onUnlock}>▶ 看广告解锁</View>
+          <View className='gateTip'>每天解锁一次，当天内免广告</View>
+        </View>
+      )}
+
+      {unlocked && (<View>
       {/* 模式切换 */}
       <View className='seg'>
         <Text className={'segBtn ' + (isGlobal ? 'segOn' : '')} onClick={() => switchMode('global')}>全服最低价</Text>
@@ -237,6 +263,7 @@ export default function Index() {
       <View className='foot'>
         狗脑发热 · 梦幻西游藏宝阁全服比价{'\n'}价格每日更新，仅供参考，以藏宝阁实时为准
       </View>
+      </View>)}
     </View>
   )
 }

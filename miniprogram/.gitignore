@@ -5,3 +5,6 @@ dist/
 .rn_temp/
 .DS_Store
 *.log
+
+# 微信开发者工具本地设置
+project.private.config.json
