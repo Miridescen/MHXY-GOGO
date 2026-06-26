@@ -9,6 +9,7 @@ const S: Record<string, CSSProperties> = {
   topbar: { position: 'sticky', top: 0, zIndex: 40, background: '#faf6eecc', backdropFilter: 'saturate(1.2) blur(8px)', borderBottom: '1px solid #ece2cf' },
   topInner: { maxWidth: 1140, margin: '0 auto', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' },
   logoBox: { width: 42, height: 42, borderRadius: 9, background: '#c1452e', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 23, color: '#faf0e0', boxShadow: 'inset 0 0 0 2px rgba(255,240,220,.35),0 3px 10px rgba(193,69,46,.3)' },
+  logoImg: { width: 44, height: 44, borderRadius: 10, objectFit: 'cover', boxShadow: '0 3px 10px rgba(120,70,160,.32)' },
   main: { maxWidth: 1140, margin: '0 auto', padding: '22px 20px 60px' },
   daquBtn: { display: 'flex', alignItems: 'center', gap: 7, height: 38, padding: '0 14px', background: '#f5ecdd', border: '1px solid #e0d2b8', borderRadius: 8, fontSize: 13.5, fontWeight: 600, color: '#2a221a', cursor: 'pointer' },
   srvBtn: { display: 'flex', alignItems: 'center', gap: 7, height: 38, padding: '0 14px', background: '#fbeee8', border: '1.5px solid #c1452e', borderRadius: 8, fontSize: 13.5, fontWeight: 700, color: '#a8351f', cursor: 'pointer' },
@@ -220,7 +221,7 @@ export default function App() {
       <div style={S.topbar}>
         <div style={S.topInner}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 11, marginRight: 'auto' }}>
-            <div className="serif" style={S.logoBox}>狗</div>
+            <img src="/logo.png" alt="狗脑发热" style={S.logoImg} />
             <div>
               <div className="serif" style={{ fontSize: 19, fontWeight: 900, letterSpacing: 2, lineHeight: 1 }}>狗脑发热</div>
               <div style={{ fontSize: 10, letterSpacing: 2, color: '#c1452e', fontWeight: 700, marginTop: 4 }}>藏宝阁 · 全服比价行</div>
