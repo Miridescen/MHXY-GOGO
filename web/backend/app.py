@@ -358,6 +358,16 @@ def role_queries():
     return out
 
 
+@app.get("/api/role_done")
+def role_done(date: str):
+    """某采集日期已入库的 query_id 列表，供续爬脚本跳过已完成项。"""
+    db = conn()
+    ids = [r[0] for r in db.execute(
+        "SELECT DISTINCT query_id FROM role_price_history WHERE run_time=?", (date,))]
+    db.close()
+    return {"date": date, "ids": ids}
+
+
 class RoleRow(BaseModel):
     query_id: int
     price_yuan: float
