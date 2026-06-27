@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { fetchOverview, fmt, serveridOf, serverCell, type Overview, type Item, type Region, type Roles, type RoleCell } from './api'
+import { fetchOverview, fmt, serveridOf, serverCell, type Overview, type Item, type Region, type Roles, type RoleCell, type Equip, type EquipGroup } from './api'
 
 const CBG = 'https://xyq.cbg.163.com/'
 const CATS = ['全部', '装备', '宝宝', '灵饰', '内丹', '锦衣', '材料']
@@ -90,6 +90,68 @@ function RoleCarryView({ title, items, rc }: {
           </tbody>
         </table>
       </div>
+    </div>
+  )
+}
+
+// 装备某子组：选「类型(/特技)」→ 看 等级 × 开服年限 全服最低价
+function EquipGroupView({ group, ages }: { group: EquipGroup; ages: { code: number; name: string }[] }) {
+  const [sel, setSel] = useState<Record<string, string>>({})
+  const cur: Record<string, string> = {}
+  group.sel.forEach(s => { cur[s.name] = (sel[s.name] && s.options.includes(sel[s.name])) ? sel[s.name] : s.options[0] })
+  const cells = group.cells.filter(c => group.sel.every(s => (s.name === '类型' ? c.类型 : c.特技) === cur[s.name]))
+  const matrix: Record<number, Record<number, typeof cells[number]>> = {}
+  cells.forEach(c => { (matrix[c.等级] = matrix[c.等级] || {})[c.年限] = c })
+  const hd: CSSProperties = { padding: '9px 14px', fontSize: 12, fontWeight: 700, color: '#b0a48c', textAlign: 'left', borderBottom: '1px solid #ece2cf', background: '#f7efe2' }
+  const cell: CSSProperties = { padding: '10px 14px', borderTop: '1px solid #f0e7d6', whiteSpace: 'nowrap' }
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <div style={{ fontSize: 14, fontWeight: 800, color: '#8a4a12', marginBottom: 9 }}>{group.label}</div>
+      {group.sel.map(s => (
+        <div key={s.name} style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 9 }}>
+          {s.options.map(o => (
+            <button key={o} onClick={() => setSel(p => ({ ...p, [s.name]: o }))}
+              style={{ fontSize: 12, fontWeight: 600, padding: '5px 12px', borderRadius: 6, cursor: 'pointer', border: '1px solid transparent', ...(o === cur[s.name] ? { color: '#fff', background: '#c1452e' } : { color: '#6a5a44', background: '#f5ecdd' }) }}>{o}</button>
+          ))}
+        </div>
+      ))}
+      <div style={{ background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 12, overflow: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 420 }}>
+          <thead><tr><th style={hd}>等级 \ 开服</th>{ages.map(a => <th key={a.code} style={hd}>{a.name}</th>)}</tr></thead>
+          <tbody>
+            {group.levels.map(lv => (
+              <tr key={lv}>
+                <td style={{ ...cell, fontSize: 14, fontWeight: 700 }}>{lv}级</td>
+                {ages.map(a => {
+                  const c = matrix[lv]?.[a.code]
+                  return (
+                    <td key={a.code} style={cell}>
+                      {c ? (
+                        <a href={c.link} target="_blank" rel="noopener" style={{ textDecoration: 'none', display: 'block' }}>
+                          <div className="serif" style={{ fontSize: 15, fontWeight: 900, color: '#c1452e' }}>{fmt(c.price)}</div>
+                          <div style={{ fontSize: 10.5, color: '#a89878', marginTop: 2 }}>{c.daqu} · {c.server} ↗</div>
+                        </a>
+                      ) : <span style={{ color: '#c0b49c' }}>—</span>}
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function EquipView({ equip }: { equip: Equip }) {
+  if (!equip || !equip.date || !equip.groups.length) return null
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <div className="serif" style={{ fontSize: 16, fontWeight: 900, color: '#c1452e', borderLeft: '3px solid #c1452e', paddingLeft: 10, letterSpacing: 1, marginBottom: 14 }}>
+        装备全服最低价
+      </div>
+      {equip.groups.map(g => <EquipGroupView key={g.key} group={g} ages={equip.ages} />)}
     </div>
   )
 }
@@ -281,6 +343,7 @@ export default function App() {
         {isGlobal && <RoleMatrix roles={data.roles} />}
         {isGlobal && <RoleCarryView title="角色 + 七夕限量锦衣 · 全服最低价" items={data.roleClothes.clothes} rc={data.roleClothes} />}
         {isGlobal && <RoleCarryView title="角色 + 限量坐骑 · 全服最低价" items={data.roleMounts.mounts} rc={data.roleMounts} />}
+        {isGlobal && <EquipView equip={data.equip} />}
 
         {/* chips */}
         <div style={{ display: 'flex', gap: 9, marginBottom: 14, flexWrap: 'wrap' }}>

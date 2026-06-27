@@ -34,6 +34,13 @@ export interface Carry {
 }
 export interface RoleClothes extends Carry { clothes: string[] }
 export interface RoleMounts extends Carry { mounts: string[] }
+export interface EquipCell {
+  类型: string | null; 特技: string | null; 等级: number; 年限: number
+  price: number; server: string; daqu: string; link: string
+}
+export interface EquipSel { name: string; options: string[] }
+export interface EquipGroup { key: string; label: string; sel: EquipSel[]; levels: number[]; cells: EquipCell[] }
+export interface Equip { date: string | null; ages: { code: number; name: string }[]; groups: EquipGroup[] }
 export interface Overview {
   generated_at: string
   regions: Region[]
@@ -41,6 +48,7 @@ export interface Overview {
   roles: Roles
   roleClothes: RoleClothes
   roleMounts: RoleMounts
+  equip: Equip
 }
 
 export function fetchOverview(): Promise<Overview> {

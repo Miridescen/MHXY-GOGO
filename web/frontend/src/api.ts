@@ -39,6 +39,13 @@ export interface RoleMounts {
   levels: string[]
   matrix: Record<string, Record<string, Record<string, RoleCell>>>  // 坐骑 → 性别 → 等级 → cell
 }
+export interface EquipCell {
+  类型: string | null; 特技: string | null; 等级: number; 年限: number
+  price: number; server: string; daqu: string; link: string
+}
+export interface EquipSel { name: string; options: string[] }
+export interface EquipGroup { key: string; label: string; sel: EquipSel[]; levels: number[]; cells: EquipCell[] }
+export interface Equip { date: string | null; ages: { code: number; name: string }[]; groups: EquipGroup[] }
 export interface Overview {
   generated_at: string
   served_at: string
@@ -47,6 +54,7 @@ export interface Overview {
   roles: Roles
   roleClothes: RoleClothes
   roleMounts: RoleMounts
+  equip: Equip
 }
 
 export async function fetchOverview(): Promise<Overview> {

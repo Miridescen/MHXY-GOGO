@@ -115,11 +115,12 @@ def build_overview():
     roles = build_roles(db)
     role_clothes = build_role_clothes(db)
     role_mounts = build_role_mounts(db)
+    equip = build_equip(db)
     db.close()
     last = max((i["latestDate"] for i in items), default=None)
     return {"generated_at": last or "", "served_at": dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
             "regions": regions_list, "items": items, "roles": roles,
-            "roleClothes": role_clothes, "roleMounts": role_mounts}
+            "roleClothes": role_clothes, "roleMounts": role_mounts, "equip": equip}
 
 
 ROLE_CATS = ["飞升", "渡劫", "175级", "化圣"]               # 展示顺序
@@ -132,6 +133,18 @@ CLOTHES_ORDER = ["青花瓷", "青花瓷.墨黑", "青花瓷.月白", "冰寒绡
 MOUNTS_ORDER = ["天使猪猪", "九尾冰狐"]
 CLOTHES_GENDERS = ["男", "女"]
 CLOTHES_LEVELS = ["不限", "69", "109", "飞升", "渡劫", "175", "化圣"]
+
+EQUIP_TYPE_ORDER = ["扇", "剑", "刀", "斧", "锤", "枪", "双环", "双剑", "鞭", "爪刺", "魔棒", "飘带",
+                    "宝珠", "弓", "法杖", "男衣", "女衣", "男头", "女头", "腰带", "鞋子", "饰品",
+                    "灯笼", "巨剑", "伞", "双斧", "棍"]
+EQUIP_SKILLS = ["晶清诀", "罗汉金钟"]
+# 装备四子组：(组key, 展示标题, 选择维度)
+EQUIP_GROUP_DEFS = [
+    ("无级别", "无级别 · 100~150级", ["类型"]),
+    ("永不磨损", "永不磨损 · 150~160级", ["类型"]),
+    ("特技", "附特技 · 晶清诀/罗汉金钟", ["特技", "类型"]),
+    ("愤怒腰带", "愤怒腰带 · 100~160级", []),
+]
 
 
 def _latest_cell(db, query_id):
@@ -182,6 +195,41 @@ def build_role_mounts(db):
     latest, mounts, matrix = _carry_matrix(db, "坐骑", "坐骑", MOUNTS_ORDER)
     return {"date": latest, "mounts": mounts, "genders": CLOTHES_GENDERS,
             "levels": CLOTHES_LEVELS, "matrix": matrix}
+
+
+def build_equip(db):
+    """装备组：4 子组，统一返回扁平 cells，前端按「类型(/特技)」筛选后看 等级×开服年限 表。"""
+    by_group, latest = {}, None
+    for q in db.execute("SELECT id, conditions FROM role_query WHERE enabled=1 AND grp='装备'"):
+        cond = json.loads(q["conditions"])
+        rt, cell = _latest_cell(db, q["id"])
+        if not cell:
+            continue
+        latest = max(latest or "", rt)
+        by_group.setdefault(cond.get("组"), []).append((cond, cell))
+
+    groups = []
+    for key, label, sels in EQUIP_GROUP_DEFS:
+        items = by_group.get(key, [])
+        if not items:
+            continue
+        cells, levels = [], set()
+        for cond, cell in items:
+            cells.append({"类型": cond.get("类型"), "特技": cond.get("特技"),
+                          "等级": cond.get("等级"), "年限": cond.get("开服年限"),
+                          "price": cell["price"], "server": cell["server"],
+                          "daqu": cell["daqu"], "link": cell["link"]})
+            levels.add(cond.get("等级"))
+        sel_opts = []
+        for s in sels:
+            if s == "类型":
+                opts = [t for t in EQUIP_TYPE_ORDER if any(c["类型"] == t for c in cells)]
+            else:  # 特技
+                opts = [t for t in EQUIP_SKILLS if any(c["特技"] == t for c in cells)]
+            sel_opts.append({"name": s, "options": opts})
+        groups.append({"key": key, "label": label, "sel": sel_opts,
+                       "levels": sorted(levels), "cells": cells})
+    return {"date": latest, "ages": ROLE_AGES, "groups": groups}
 
 
 # 简单缓存：数据一天才变两次，缓存 60s，避免每次请求都全表扫

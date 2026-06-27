@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import logo from '../../images/logo.png'
 import {
   fetchOverview, fmt, copyLink,
-  type Overview, type Carry
+  type Overview, type Carry, type Equip, type EquipGroup
 } from '../../utils/api'
 import { showRewardAd } from '../../utils/ad'
 import './index.scss'
@@ -50,6 +50,62 @@ function CarryView({ title, items, data }: { title: string; items: string[]; dat
           ))}
         </View>
       </ScrollView>
+    </View>
+  )
+}
+
+// 装备某子组：选「类型(/特技)」→ 等级 × 开服年限
+function EquipGroupView({ group, ages }: { group: EquipGroup; ages: { code: number; name: string }[] }) {
+  const [sel, setSel] = useState<Record<string, string>>({})
+  const cur: Record<string, string> = {}
+  group.sel.forEach(s => { cur[s.name] = (sel[s.name] && s.options.indexOf(sel[s.name]) >= 0) ? sel[s.name] : s.options[0] })
+  const cells = group.cells.filter(c => group.sel.every(s => (s.name === '类型' ? c.类型 : c.特技) === cur[s.name]))
+  const matrix: Record<number, Record<number, typeof cells[number]>> = {}
+  cells.forEach(c => { (matrix[c.等级] = matrix[c.等级] || {})[c.年限] = c })
+  return (
+    <View className='eqGroup'>
+      <View className='eqLabel'>{group.label}</View>
+      {group.sel.map(s => (
+        <ScrollView scrollX className='chips' key={s.name}>
+          {s.options.map(o => (
+            <Text key={o} className={'chip ' + (o === cur[s.name] ? 'chipOn' : '')} onClick={() => setSel(p => ({ ...p, [s.name]: o }))}>{o}</Text>
+          ))}
+        </ScrollView>
+      ))}
+      <View className='matrixWrap'>
+        <View className='matrix matrixFit'>
+          <View className='mRow mHead'>
+            <View className='mCell mFirst'>等级\开服</View>
+            {ages.map(a => <View key={a.code} className='mCell'>{a.name}</View>)}
+          </View>
+          {group.levels.map(lv => (
+            <View key={lv} className='mRow'>
+              <View className='mCell mFirst mGender'>{lv}级</View>
+              {ages.map(a => {
+                const c = matrix[lv] ? matrix[lv][a.code] : undefined
+                return (
+                  <View key={a.code} className='mCell' onClick={() => c && copyLink(c.link)}>
+                    {c
+                      ? <View><Text className='price'>{fmt(c.price)}</Text><View className='loc'>{c.daqu}·{c.server} ↗</View></View>
+                      : <Text className='dash'>—</Text>}
+                  </View>
+                )
+              })}
+            </View>
+          ))}
+        </View>
+      </View>
+    </View>
+  )
+}
+
+function EquipView({ equip }: { equip: Equip }) {
+  if (!equip || !equip.date || !equip.groups.length) return null
+  return (
+    <View className='block'>
+      <View className='blockTitle'>装备全服最低价</View>
+      <View className='tip'>👆 点价格可复制藏宝阁链接</View>
+      {equip.groups.map(g => <EquipGroupView key={g.key} group={g} ages={equip.ages} />)}
     </View>
   )
 }
@@ -205,6 +261,7 @@ export default function Index() {
       )}
       {isGlobal && <CarryView title='角色 + 七夕限量锦衣 · 全服最低价' items={ov.roleClothes.clothes} data={ov.roleClothes} />}
       {isGlobal && <CarryView title='角色 + 限量坐骑 · 全服最低价' items={ov.roleMounts.mounts} data={ov.roleMounts} />}
+      {isGlobal && <EquipView equip={ov.equip} />}
 
       {/* 分类 */}
       <ScrollView scrollX className='chips'>
