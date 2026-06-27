@@ -89,7 +89,9 @@
   // 返回：>=0 入库条数；-1 接口/网络失败；-2 遇验证码（进度条已变红提示，调用方应直接 return）
   async function crawlRoles() {
     try {
-      const queries = await (await fetch(ROLE_QUERIES_URL)).json();
+      // 只爬角色组（境界/锦衣/坐骑）；装备组(search_type=overall_search_equip)单独用 crawl_equip.js 慢爬，避免限流连累
+      const queries = (await (await fetch(ROLE_QUERIES_URL)).json())
+        .filter(q => !(q.api_params && q.api_params.search_type === 'overall_search_equip'));
       const rows = [];
       const total = queries.length;
       for (let i = 0; i < total; i++) {
