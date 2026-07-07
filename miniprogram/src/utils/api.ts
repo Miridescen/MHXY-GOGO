@@ -1,8 +1,8 @@
 import Taro from '@tarojs/taro'
 
-// 开发期：连现有老服务器（开发者工具需勾「不校验合法域名」）。
-// 备案通过后改成： https://dogfever.cn
-export const API_BASE = 'https://43-106-131-65.nip.io:8090'
+// 生产：广州腾讯云（dogfever.cn，已备案+HTTPS）。
+// 小程序后台「服务器域名」需把 https://dogfever.cn 加进 request 合法域名。
+export const API_BASE = 'https://dogfever.cn'
 
 // ---- 后端 /api/overview 返回的数据类型（与网站一致）----
 export interface ServerRef { name: string; serverid: number }

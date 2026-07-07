@@ -15,7 +15,7 @@
  * 安全：单线程 ~2 秒/条，每 80 条歇 10 秒，连续 6 次出错自动停（防风控连累账号）。
  * ============================================================ */
 (function () {
-  const BASE = 'https://43-106-131-65.nip.io:8090';
+  const BASE = 'https://dogfever.cn';
   const TOKEN = localStorage.getItem('__ingest_token') ||
     (function () { const t = (prompt('请输入入库令牌（向管理员索取）') || '').trim();
       if (t) localStorage.setItem('__ingest_token', t); return t; })();

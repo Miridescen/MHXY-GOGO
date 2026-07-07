@@ -9,8 +9,8 @@
 
 ## 接口地址（重要）
 `src/utils/api.ts` 顶部的 `API_BASE`：
-- 开发期 = `https://43-106-131-65.nip.io:8090`（老服务器；开发者工具需勾「不校验合法域名」）
-- **dogfever.cn 备案通过后改成** `https://dogfever.cn`，并在小程序后台「服务器域名」里把它加进 `request 合法域名`
+- 生产 = `https://dogfever.cn`（广州腾讯云，已备案+HTTPS）
+- 小程序后台「服务器域名」里需把 `https://dogfever.cn` 加进 `request 合法域名`
 
 ## 本地开发（先装一次依赖）
 ```bash

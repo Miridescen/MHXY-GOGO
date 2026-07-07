@@ -2,7 +2,7 @@
 
 爬取《梦幻西游》藏宝阁各区服物品价格，找出**全服最低价**，并通过网站展示。
 
-**在线网站**：https://43-106-131-65.nip.io:8090/
+**在线网站**：https://dogfever.cn/
 
 ## 工作流（一步自动）
 
@@ -40,7 +40,7 @@ web/
 |---|---|
 | 数据库 | `/opt/cbg-data/prices.db`（SQLite） |
 | 后端 | systemd `mhxy-api`（127.0.0.1:5002，含 INGEST_TOKEN） |
-| 网站 | nginx HTTPS :8090 → `/var/www/mhxy/` + 反代 `/api`（Let's Encrypt + nip.io，自动续期） |
+| 网站 | nginx HTTPS 443（dogfever.cn）→ `/var/www/mhxy/` + 反代 `/api`（Let's Encrypt certbot，自动续期；80 跳 443） |
 | 导入接口 | `POST /api/ingest`（X-Token 令牌校验） |
 
 ## 数据库表
@@ -51,6 +51,6 @@ web/
 
 ## 注意
 
-- 网站用 HTTPS 域名访问（`https://43-106-131-65.nip.io:8090/`），别用 IP（证书不匹配）。
+- 网站用 HTTPS 域名访问（`https://dogfever.cn/`），别用 IP（证书不匹配）。
 - 入库令牌不在仓库里，首次运行脚本时弹窗输入、存浏览器本地。
 - 爬取务必单线程慢速，切勿并发/调小间隔（封号风险）。

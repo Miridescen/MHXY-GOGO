@@ -27,7 +27,7 @@
   const DELAY_MIN = 1300, DELAY_RAND = 1300;  // 每次请求间隔 1.3~2.6 秒（账号安全，勿调太小）
   const REST_EVERY = 100, REST_MS = 20000;    // 每 100 次歇 20 秒
   // 爬完自动入库接口（HTTPS）。令牌不写在代码里：首次运行弹窗输入，存本浏览器，之后免输。
-  const BASE = 'https://43-106-131-65.nip.io:8090';
+  const BASE = 'https://dogfever.cn';
   const INGEST_URL = BASE + '/api/ingest';
   const ROLE_QUERIES_URL = BASE + '/api/role_queries';   // 角色搜索清单(数据驱动)
   const INGEST_ROLE_URL = BASE + '/api/ingest_role';
