@@ -406,9 +406,15 @@ def ingest_role(body: RoleIngestBody, x_token: str = Header(default="")):
 
 
 # ============ 抓宝宝：大任务(catch_task) + 小任务/每次抓到(catch_log) ============
+CATCH_CATEGORIES = ("宝宝", "环装")
+RING_SUB_TYPES = ("武器", "装备")
+
+
 class CatchLogBody(BaseModel):
     task_id: int
-    pet_type: str = ""
+    category: str = "宝宝"      # 宝宝 | 环装
+    name: str = ""             # 宝宝→宝宝名; 环装→级别(60/70/80)
+    sub_type: str = ""         # 环装→武器/装备; 宝宝留空
     coord: str = ""            # 可选，形如 "12,234"
     current_time: str = ""     # 抓到的时间（前端默认 now，可改）
 
@@ -423,9 +429,10 @@ def _ensure_catch_tables(db):
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         start_time TEXT, end_time TEXT, created_at TEXT)""")
     # 小任务：任务期间每抓到一只（catch_time 而非 current_time，后者是 SQLite 保留字）
+    # category=宝宝/环装; name=宝宝名或环装级别; sub_type=环装的武器/装备
     db.execute("""CREATE TABLE IF NOT EXISTS catch_log(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        task_id INTEGER, pet_type TEXT, coord TEXT,
+        task_id INTEGER, category TEXT, name TEXT, sub_type TEXT, coord TEXT,
         catch_time TEXT, created_at TEXT)""")
 
 
@@ -454,8 +461,18 @@ def catch_task_end(task_id: int):
 
 @app.post("/api/catch_log")
 def catch_log_add(body: CatchLogBody):
-    if not body.pet_type.strip():
-        raise HTTPException(400, "宝宝类型必填")
+    category = body.category.strip()
+    name = body.name.strip()
+    sub_type = body.sub_type.strip()
+    if category not in CATCH_CATEGORIES:
+        raise HTTPException(400, "类别应为 宝宝 或 环装")
+    if not name:
+        raise HTTPException(400, "宝宝/环装 选项必填")
+    if category == "环装":
+        if sub_type not in RING_SUB_TYPES:
+            raise HTTPException(400, "环装需选择 武器 或 装备")
+    else:
+        sub_type = ""   # 宝宝不带子类型
     coord = body.coord.strip()
     if coord and not re.fullmatch(r"\d{1,4}\s*[,，]\s*\d{1,4}", coord):
         raise HTTPException(400, "坐标格式应为 12,234")
@@ -470,8 +487,8 @@ def catch_log_add(body: CatchLogBody):
         raise HTTPException(400, "任务已结束，请重新开始")
     now = _server_now()
     cur = db.execute(
-        "INSERT INTO catch_log(task_id,pet_type,coord,catch_time,created_at) VALUES(?,?,?,?,?)",
-        (body.task_id, body.pet_type.strip(), coord, body.current_time.strip(), now))
+        "INSERT INTO catch_log(task_id,category,name,sub_type,coord,catch_time,created_at) VALUES(?,?,?,?,?,?,?)",
+        (body.task_id, category, name, sub_type, coord, body.current_time.strip(), now))
     db.commit()
     rid = cur.lastrowid
     db.close()
@@ -498,12 +515,12 @@ def catch_logs(task_id: int = 0, limit: int = 100):
     _ensure_catch_tables(db)
     if task_id:
         rows = db.execute(
-            "SELECT id,task_id,pet_type,coord,catch_time AS current_time,created_at "
+            "SELECT id,task_id,category,name,sub_type,coord,catch_time AS current_time,created_at "
             "FROM catch_log WHERE task_id=? ORDER BY id DESC LIMIT ?",
             (task_id, max(1, min(500, limit))))
     else:
         rows = db.execute(
-            "SELECT id,task_id,pet_type,coord,catch_time AS current_time,created_at "
+            "SELECT id,task_id,category,name,sub_type,coord,catch_time AS current_time,created_at "
             "FROM catch_log ORDER BY id DESC LIMIT ?",
             (max(1, min(500, limit)),))
     out = [dict(r) for r in rows]

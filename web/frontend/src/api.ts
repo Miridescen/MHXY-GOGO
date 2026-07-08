@@ -65,7 +65,7 @@ export async function fetchOverview(): Promise<Overview> {
 
 // ---- 抓宝宝：大任务(catch_task) + 每次抓到(catch_log) ----
 export interface CatchTask { id: number; start_time: string; end_time: string | null; created_at: string; catches: number }
-export interface CatchLog { id: number; task_id: number; pet_type: string; coord: string; current_time: string; created_at: string }
+export interface CatchLog { id: number; task_id: number; category: string; name: string; sub_type: string; coord: string; current_time: string; created_at: string }
 
 async function jsonOrThrow(r: Response) {
   if (!r.ok) {
@@ -87,7 +87,7 @@ export async function fetchCatchTasks(): Promise<CatchTask[]> {
   if (!r.ok) throw new Error('HTTP ' + r.status)
   return (await r.json()).rows
 }
-export async function addCatchLog(body: { task_id: number; pet_type: string; coord: string; current_time: string }): Promise<{ ok: boolean; id: number }> {
+export async function addCatchLog(body: { task_id: number; category: string; name: string; sub_type: string; coord: string; current_time: string }): Promise<{ ok: boolean; id: number }> {
   return jsonOrThrow(await fetch('/api/catch_log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }))
 }
 export async function fetchCatchLogs(taskId?: number): Promise<CatchLog[]> {

@@ -205,9 +205,14 @@ function CatchLogView({ petTypes }: { petTypes: string[] }) {
     const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
     return d.toISOString().slice(0, 16)   // 'YYYY-MM-DDTHH:mm'（本地时区）
   }
+  const [category, setCategory] = useState<'宝宝' | '环装'>('宝宝')
   const [petType, setPetType] = useState(petTypes[0] || '')
+  const [ringLevel, setRingLevel] = useState('60')
+  const [ringSub, setRingSub] = useState<'武器' | '装备'>('武器')
   const [coord, setCoord] = useState('')
   const [curTime, setCurTime] = useState(nowLocal())
+  const catchLabel = (c: { category: string; name: string; sub_type: string }) =>
+    c.category === '环装' ? `${c.name}环·${c.sub_type}` : c.name
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [tasks, setTasks] = useState<CatchTask[]>([])
@@ -241,11 +246,13 @@ function CatchLogView({ petTypes }: { petTypes: string[] }) {
   }
   const submit = async () => {
     if (!active) { setMsg({ ok: false, text: '请先点「开始」开启任务' }); return }
-    if (!petType) { setMsg({ ok: false, text: '请选择宝宝类型' }); return }
+    const isRing = category === '环装'
+    const name = isRing ? ringLevel : petType
+    if (!name) { setMsg({ ok: false, text: isRing ? '请选择环装级别' : '请选择宝宝类型' }); return }
     if (coord.trim() && !/^\d{1,4}\s*[,，]\s*\d{1,4}$/.test(coord.trim())) { setMsg({ ok: false, text: '坐标格式应为 12,234' }); return }
     setBusy(true); setMsg(null)
     try {
-      await addCatchLog({ task_id: active.id, pet_type: petType, coord: coord.trim(), current_time: curTime })
+      await addCatchLog({ task_id: active.id, category, name, sub_type: isRing ? ringSub : '', coord: coord.trim(), current_time: curTime })
       setMsg({ ok: true, text: '已录入 ✓' })
       setCoord(''); setCurTime(nowLocal())
       await Promise.all([fetchCatchLogs(active.id).then(setLogs), loadTasks()])
@@ -275,11 +282,37 @@ function CatchLogView({ petTypes }: { petTypes: string[] }) {
       <div style={{ fontSize: 15, fontWeight: 800, color: '#2a221a', marginBottom: 12 }}>抓到一只 · 录入</div>
       <div style={{ maxWidth: 460, background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 14, padding: 20, opacity: active ? 1 : 0.6 }}>
         <div style={{ marginBottom: 14 }}>
-          <label style={labelStyle}>宝宝类型</label>
-          <select value={petType} onChange={e => setPetType(e.target.value)} style={inputStyle}>
-            {petTypes.map(p => <option key={p} value={p}>{p}</option>)}
-          </select>
+          <label style={labelStyle}>类别</label>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {(['宝宝', '环装'] as const).map(c => (
+              <button key={c} onClick={() => setCategory(c)}
+                style={{ flex: 1, padding: '9px 0', fontSize: 13.5, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer', borderRadius: 8, border: '1px solid ' + (category === c ? '#c1452e' : '#e0d4bd'), background: category === c ? '#c1452e' : '#fff', color: category === c ? '#fff' : '#6a5a44' }}>{c}</button>
+            ))}
+          </div>
         </div>
+        {category === '宝宝' ? (
+          <div style={{ marginBottom: 14 }}>
+            <label style={labelStyle}>宝宝类型</label>
+            <select value={petType} onChange={e => setPetType(e.target.value)} style={inputStyle}>
+              {petTypes.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>环装级别</label>
+              <select value={ringLevel} onChange={e => setRingLevel(e.target.value)} style={inputStyle}>
+                {['60', '70', '80'].map(l => <option key={l} value={l}>{l}环</option>)}
+              </select>
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>武器 / 装备</label>
+              <select value={ringSub} onChange={e => setRingSub(e.target.value as '武器' | '装备')} style={inputStyle}>
+                {['武器', '装备'].map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+          </div>
+        )}
         <div style={{ marginBottom: 14 }}>
           <label style={labelStyle}>坐标 <span style={{ color: '#a89878', fontWeight: 400 }}>（可选，如 12,234）</span></label>
           <input value={coord} onChange={e => setCoord(e.target.value)} placeholder="12,234" style={inputStyle} />
@@ -303,12 +336,13 @@ function CatchLogView({ petTypes }: { petTypes: string[] }) {
         <div style={{ marginTop: 24 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: '#5a4a34', marginBottom: 10 }}>本次任务已抓（{logs.length}）</div>
           <div style={{ maxWidth: 460, background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 12, overflow: 'hidden' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.6fr', gap: 8, padding: '9px 14px', fontSize: 12, fontWeight: 700, color: '#a89878', borderBottom: '1px solid #ece2cf' }}>
-              <div>宝宝</div><div>坐标</div><div>时间</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '0.6fr 1.2fr 1fr 1.4fr', gap: 8, padding: '9px 14px', fontSize: 12, fontWeight: 700, color: '#a89878', borderBottom: '1px solid #ece2cf' }}>
+              <div>类别</div><div>项目</div><div>坐标</div><div>时间</div>
             </div>
             {logs.map(l => (
-              <div key={l.id} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.6fr', gap: 8, padding: '9px 14px', fontSize: 12.5, color: '#3a3226', borderTop: '1px solid #f3ead9' }}>
-                <div style={{ fontWeight: 700 }}>{l.pet_type}</div>
+              <div key={l.id} style={{ display: 'grid', gridTemplateColumns: '0.6fr 1.2fr 1fr 1.4fr', gap: 8, padding: '9px 14px', fontSize: 12.5, color: '#3a3226', borderTop: '1px solid #f3ead9' }}>
+                <div style={{ color: '#a89878' }}>{l.category}</div>
+                <div style={{ fontWeight: 700 }}>{catchLabel(l)}</div>
                 <div>{l.coord || '—'}</div>
                 <div>{(l.current_time || '—').replace('T', ' ')}</div>
               </div>
