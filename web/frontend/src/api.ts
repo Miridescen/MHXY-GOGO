@@ -63,11 +63,11 @@ export async function fetchOverview(): Promise<Overview> {
   return r.json()
 }
 
-// ---- 抓宝宝记录 ----
-export interface CatchLog { id: number; start_time: string; pet_type: string; coord: string; current_time: string; created_at: string }
+// ---- 抓宝宝：大任务(catch_task) + 每次抓到(catch_log) ----
+export interface CatchTask { id: number; start_time: string; end_time: string | null; created_at: string; catches: number }
+export interface CatchLog { id: number; task_id: number; pet_type: string; coord: string; current_time: string; created_at: string }
 
-export async function addCatchLog(body: { start_time: string; pet_type: string; coord: string; current_time: string }): Promise<{ ok: boolean; id: number }> {
-  const r = await fetch('/api/catch_log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+async function jsonOrThrow(r: Response) {
   if (!r.ok) {
     let m = 'HTTP ' + r.status
     try { m = (await r.json()).detail || m } catch { /* ignore */ }
@@ -76,8 +76,23 @@ export async function addCatchLog(body: { start_time: string; pet_type: string; 
   return r.json()
 }
 
-export async function fetchCatchLogs(): Promise<CatchLog[]> {
-  const r = await fetch('/api/catch_logs?_=' + Date.now())
+export async function startCatchTask(): Promise<{ ok: boolean; id: number; start_time: string }> {
+  return jsonOrThrow(await fetch('/api/catch_task/start', { method: 'POST' }))
+}
+export async function endCatchTask(id: number): Promise<{ ok: boolean; id: number; end_time: string }> {
+  return jsonOrThrow(await fetch('/api/catch_task/' + id + '/end', { method: 'POST' }))
+}
+export async function fetchCatchTasks(): Promise<CatchTask[]> {
+  const r = await fetch('/api/catch_tasks?_=' + Date.now())
+  if (!r.ok) throw new Error('HTTP ' + r.status)
+  return (await r.json()).rows
+}
+export async function addCatchLog(body: { task_id: number; pet_type: string; coord: string; current_time: string }): Promise<{ ok: boolean; id: number }> {
+  return jsonOrThrow(await fetch('/api/catch_log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }))
+}
+export async function fetchCatchLogs(taskId?: number): Promise<CatchLog[]> {
+  const q = taskId ? ('?task_id=' + taskId) : ('?_=' + Date.now())
+  const r = await fetch('/api/catch_logs' + q)
   if (!r.ok) throw new Error('HTTP ' + r.status)
   return (await r.json()).rows
 }

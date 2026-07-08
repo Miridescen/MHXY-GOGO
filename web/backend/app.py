@@ -405,20 +405,51 @@ def ingest_role(body: RoleIngestBody, x_token: str = Header(default="")):
     return {"ok": True, "inserted": len(data), "run_date": body.run_date}
 
 
-# ============ 抓宝宝记录 ============
+# ============ 抓宝宝：大任务(catch_task) + 小任务/每次抓到(catch_log) ============
 class CatchLogBody(BaseModel):
-    start_time: str = ""
+    task_id: int
     pet_type: str = ""
-    coord: str = ""        # 可选，形如 "12,234"
-    current_time: str = ""
+    coord: str = ""            # 可选，形如 "12,234"
+    current_time: str = ""     # 抓到的时间（前端默认 now，可改）
 
 
-def _ensure_catch_table(db):
-    # catch_time 而非 current_time：current_time 是 SQLite 保留关键字，SELECT 会被当成函数
+def _server_now():
+    return dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _ensure_catch_tables(db):
+    # 大任务：一次抓宝宝任务（开始→结束）
+    db.execute("""CREATE TABLE IF NOT EXISTS catch_task(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        start_time TEXT, end_time TEXT, created_at TEXT)""")
+    # 小任务：任务期间每抓到一只（catch_time 而非 current_time，后者是 SQLite 保留字）
     db.execute("""CREATE TABLE IF NOT EXISTS catch_log(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        start_time TEXT, pet_type TEXT, coord TEXT,
+        task_id INTEGER, pet_type TEXT, coord TEXT,
         catch_time TEXT, created_at TEXT)""")
+
+
+@app.post("/api/catch_task/start")
+def catch_task_start():
+    db = conn()
+    _ensure_catch_tables(db)
+    now = _server_now()
+    cur = db.execute("INSERT INTO catch_task(start_time,end_time,created_at) VALUES(?,NULL,?)", (now, now))
+    db.commit()
+    tid = cur.lastrowid
+    db.close()
+    return {"ok": True, "id": tid, "start_time": now}
+
+
+@app.post("/api/catch_task/{task_id}/end")
+def catch_task_end(task_id: int):
+    db = conn()
+    _ensure_catch_tables(db)
+    now = _server_now()
+    db.execute("UPDATE catch_task SET end_time=? WHERE id=? AND end_time IS NULL", (now, task_id))
+    db.commit()
+    db.close()
+    return {"ok": True, "id": task_id, "end_time": now}
 
 
 @app.post("/api/catch_log")
@@ -429,23 +460,52 @@ def catch_log_add(body: CatchLogBody):
     if coord and not re.fullmatch(r"\d{1,4}\s*[,，]\s*\d{1,4}", coord):
         raise HTTPException(400, "坐标格式应为 12,234")
     db = conn()
-    _ensure_catch_table(db)
-    now = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    _ensure_catch_tables(db)
+    t = db.execute("SELECT id, end_time FROM catch_task WHERE id=?", (body.task_id,)).fetchone()
+    if not t:
+        db.close()
+        raise HTTPException(400, "任务不存在，请先点「开始」")
+    if t["end_time"]:
+        db.close()
+        raise HTTPException(400, "任务已结束，请重新开始")
+    now = _server_now()
     cur = db.execute(
-        "INSERT INTO catch_log(start_time,pet_type,coord,catch_time,created_at) VALUES(?,?,?,?,?)",
-        (body.start_time.strip(), body.pet_type.strip(), coord, body.current_time.strip(), now))
+        "INSERT INTO catch_log(task_id,pet_type,coord,catch_time,created_at) VALUES(?,?,?,?,?)",
+        (body.task_id, body.pet_type.strip(), coord, body.current_time.strip(), now))
     db.commit()
     rid = cur.lastrowid
     db.close()
-    return {"ok": True, "id": rid}
+    return {"ok": True, "id": rid, "task_id": body.task_id}
+
+
+@app.get("/api/catch_tasks")
+def catch_tasks(limit: int = 50):
+    """任务列表 + 每个任务抓到数量（供展示 / 后续统计）。end_time 为空即进行中。"""
+    db = conn()
+    _ensure_catch_tables(db)
+    rows = [dict(r) for r in db.execute(
+        """SELECT t.id, t.start_time, t.end_time, t.created_at, COUNT(l.id) AS catches
+           FROM catch_task t LEFT JOIN catch_log l ON l.task_id = t.id
+           GROUP BY t.id ORDER BY t.id DESC LIMIT ?""",
+        (max(1, min(300, limit)),))]
+    db.close()
+    return {"rows": rows}
 
 
 @app.get("/api/catch_logs")
-def catch_logs(limit: int = 30):
+def catch_logs(task_id: int = 0, limit: int = 100):
     db = conn()
-    _ensure_catch_table(db)
-    rows = [dict(r) for r in db.execute(
-        "SELECT id,start_time,pet_type,coord,catch_time AS current_time,created_at FROM catch_log ORDER BY id DESC LIMIT ?",
-        (max(1, min(200, limit)),))]
+    _ensure_catch_tables(db)
+    if task_id:
+        rows = db.execute(
+            "SELECT id,task_id,pet_type,coord,catch_time AS current_time,created_at "
+            "FROM catch_log WHERE task_id=? ORDER BY id DESC LIMIT ?",
+            (task_id, max(1, min(500, limit))))
+    else:
+        rows = db.execute(
+            "SELECT id,task_id,pet_type,coord,catch_time AS current_time,created_at "
+            "FROM catch_log ORDER BY id DESC LIMIT ?",
+            (max(1, min(500, limit)),))
+    out = [dict(r) for r in rows]
     db.close()
-    return {"rows": rows}
+    return {"rows": out}
