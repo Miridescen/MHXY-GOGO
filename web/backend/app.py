@@ -129,7 +129,7 @@ ROLE_AGES = [{"code": 1, "name": "1年内"}, {"code": 2, "name": "1到3年"}, {"
 
 CLOTHES_ORDER = ["青花瓷", "青花瓷.墨黑", "青花瓷.月白", "冰寒绡", "冰寒绡.月白", "冰寒绡.墨黑",
                  "落星织", "云龙梦", "云龙梦.月白", "云龙梦.墨黑", "浪淘纱", "浪淘纱·月白", "浪淘纱·墨黑",
-                 "纤云纱", "纤云纱·月白", "纤云纱·墨黑", "水云归", "水云归·月白", "水云归·墨黑", "潮汐帆板"]
+                 "纤云纱", "纤云纱·月白", "纤云纱·墨黑", "潮汐帆板"]
 MOUNTS_ORDER = ["天使猪猪", "九尾冰狐"]
 CLOTHES_GENDERS = ["男", "女"]
 CLOTHES_LEVELS = ["不限", "69", "109", "飞升", "渡劫", "175", "化圣"]
@@ -215,6 +215,8 @@ def build_equip(db):
             continue
         cells, levels = [], set()
         for cond, cell in items:
+            if cond.get("开服年限") == 1:   # 1年内档位不再展示
+                continue
             cells.append({"类型": cond.get("类型"), "特技": cond.get("特技"),
                           "等级": cond.get("等级"), "年限": cond.get("开服年限"),
                           "price": cell["price"], "server": cell["server"],
@@ -229,7 +231,7 @@ def build_equip(db):
             sel_opts.append({"name": s, "options": opts})
         groups.append({"key": key, "label": label, "sel": sel_opts,
                        "levels": sorted(levels), "cells": cells})
-    return {"date": latest, "ages": ROLE_AGES, "groups": groups}
+    return {"date": latest, "ages": [a for a in ROLE_AGES if a["code"] != 1], "groups": groups}
 
 
 # 简单缓存：数据一天才变两次，缓存 60s，避免每次请求都全表扫

@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { fetchOverview, fmt, serveridOf, serverCell, type Overview, type Item, type Region, type Roles, type RoleCell, type Equip, type EquipGroup } from './api'
 
 const CBG = 'https://xyq.cbg.163.com/'
-const CATS = ['全部', '装备', '宝宝', '灵饰', '内丹', '锦衣', '材料']
 const SEL_KEY = '__mhxy_sel'   // localStorage: 记住用户选的区服/模式
 
 const S: Record<string, CSSProperties> = {
@@ -206,7 +205,6 @@ export default function App() {
   const [mode, setMode] = useState<Mode>('global')
   const [daqu, setDaqu] = useState('')
   const [server, setServer] = useState('')
-  const [cat, setCat] = useState('全部')
   const [q, setQ] = useState('')
   const [openDaqu, setOpenDaqu] = useState(false)
   const [openServer, setOpenServer] = useState(false)
@@ -247,7 +245,7 @@ export default function App() {
   const curSid = useMemo(() => serveridOf(region, server), [region, server])
   const isGlobal = mode === 'global'
 
-  const list = useMemo(() => (data?.items || []).filter(it => (cat === '全部' || it.cat === cat) && (!q || it.name.indexOf(q) !== -1)), [data, cat, q])
+  const list = useMemo(() => (data?.items || []).filter(it => (!q || it.name.indexOf(q) !== -1)), [data, q])
 
   const rows: Row[] = useMemo(() => list.map(it => {
     const gLoc = `${it.low.daqu} · ${it.low.server}`
@@ -275,7 +273,6 @@ export default function App() {
   const priceColLabel = isGlobal ? '全服最低价' : '本服价格'
   const col3Label = isGlobal ? '所在区服' : '全服最低'
   const gridCols = isGlobal ? '2.7fr 1.3fr 1.5fr 1fr 1fr' : '2.4fr 1.2fr 1.9fr 1fr 1fr'
-  const resultMeta = `共 ${rows.length} 件物品 · ${isGlobal ? '展示每件商品在所有区服的最低价' : `展示 ${server} 在售价格，并提示全服最低`}`
 
   return (
     <div>
@@ -286,7 +283,7 @@ export default function App() {
             <img src="/logo.png" alt="狗脑发热" style={S.logoImg} />
             <div>
               <div className="serif" style={{ fontSize: 19, fontWeight: 900, letterSpacing: 2, lineHeight: 1 }}>狗脑发热</div>
-              <div style={{ fontSize: 10, letterSpacing: 2, color: '#c1452e', fontWeight: 700, marginTop: 4 }}>藏宝阁 · 全服比价行</div>
+              <div style={{ fontSize: 10, letterSpacing: 2, color: '#c1452e', fontWeight: 700, marginTop: 4 }}>藏宝阁 · 全服比价</div>
             </div>
           </div>
           <div ref={selRef} style={{ display: 'flex', alignItems: 'center', gap: 8, position: 'relative' }}>
@@ -345,17 +342,9 @@ export default function App() {
         {isGlobal && <RoleCarryView title="角色 + 限量坐骑 · 全服最低价" items={data.roleMounts.mounts} rc={data.roleMounts} />}
         {isGlobal && <EquipView equip={data.equip} />}
 
-        {/* chips */}
-        <div style={{ display: 'flex', gap: 9, marginBottom: 14, flexWrap: 'wrap' }}>
-          {CATS.map(c => (
-            <button key={c} onClick={() => setCat(c)}
-              style={{ fontSize: 13, fontWeight: 600, padding: '7px 16px', borderRadius: 6, cursor: 'pointer', border: '1px solid transparent', ...(c === cat ? { color: '#fff', background: '#c1452e' } : { color: '#6a5a44', background: '#f5ecdd' }) }}>{c}</button>
-          ))}
-        </div>
-
-        {/* result meta */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 6 }}>
-          <div style={{ fontSize: 12.5, color: '#8a7a5c' }}>{resultMeta}</div>
+        {/* 物品列表标题 */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 6 }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: '#2a221a' }}>{isGlobal ? '全服最低价' : `本服 · ${server}`}</div>
           <div style={{ fontSize: 11, color: '#b0a48c' }}>价格仅供参考，点击「去购买」跳转藏宝阁实时核价</div>
         </div>
 
