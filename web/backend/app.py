@@ -406,15 +406,15 @@ def ingest_role(body: RoleIngestBody, x_token: str = Header(default="")):
 
 
 # ============ 抓宝宝：大任务(catch_task) + 小任务/每次抓到(catch_log) ============
-CATCH_CATEGORIES = ("宝宝", "环装")
+CATCH_CATEGORIES = ("宝宝", "环装", "告密")
 RING_SUB_TYPES = ("武器", "装备")
 
 
 class CatchLogBody(BaseModel):
     task_id: int
-    category: str = "宝宝"      # 宝宝 | 环装
-    name: str = ""             # 宝宝→宝宝名; 环装→级别(60/70/80)
-    sub_type: str = ""         # 环装→武器/装备; 宝宝留空
+    category: str = "宝宝"      # 宝宝 | 环装 | 告密
+    name: str = ""             # 宝宝→宝宝名; 环装→级别(60/70/80); 告密→空
+    sub_type: str = ""         # 环装→武器/装备; 宝宝/告密留空
     coord: str = ""            # 可选，形如 "12,234"
     current_time: str = ""     # 抓到的时间（前端默认 now，可改）
 
@@ -465,14 +465,19 @@ def catch_log_add(body: CatchLogBody):
     name = body.name.strip()
     sub_type = body.sub_type.strip()
     if category not in CATCH_CATEGORIES:
-        raise HTTPException(400, "类别应为 宝宝 或 环装")
-    if not name:
-        raise HTTPException(400, "宝宝/环装 选项必填")
+        raise HTTPException(400, "类别应为 宝宝 / 环装 / 告密")
     if category == "环装":
+        if not name:
+            raise HTTPException(400, "请选择环装级别")
         if sub_type not in RING_SUB_TYPES:
             raise HTTPException(400, "环装需选择 武器 或 装备")
-    else:
-        sub_type = ""   # 宝宝不带子类型
+    elif category == "宝宝":
+        if not name:
+            raise HTTPException(400, "请选择宝宝类型")
+        sub_type = ""
+    else:   # 告密：只有坐标 + 时间
+        name = ""
+        sub_type = ""
     coord = body.coord.strip()
     if coord and not re.fullmatch(r"\d{1,4}\s*[,，]\s*\d{1,4}", coord):
         raise HTTPException(400, "坐标格式应为 12,234")

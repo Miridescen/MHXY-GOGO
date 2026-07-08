@@ -205,14 +205,14 @@ function CatchLogView({ petTypes }: { petTypes: string[] }) {
     const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
     return d.toISOString().slice(0, 16)   // 'YYYY-MM-DDTHH:mm'（本地时区）
   }
-  const [category, setCategory] = useState<'宝宝' | '环装'>('宝宝')
+  const [category, setCategory] = useState<'宝宝' | '环装' | '告密'>('宝宝')
   const [petType, setPetType] = useState(petTypes[0] || '')
   const [ringLevel, setRingLevel] = useState('60')
   const [ringSub, setRingSub] = useState<'武器' | '装备'>('武器')
   const [coord, setCoord] = useState('')
   const [curTime, setCurTime] = useState(nowLocal())
   const catchLabel = (c: { category: string; name: string; sub_type: string }) =>
-    c.category === '环装' ? `${c.name}环·${c.sub_type}` : c.name
+    c.category === '环装' ? `${c.name}环·${c.sub_type}` : c.category === '告密' ? '告密' : c.name
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [tasks, setTasks] = useState<CatchTask[]>([])
@@ -245,13 +245,14 @@ function CatchLogView({ petTypes }: { petTypes: string[] }) {
   }
   const submit = async () => {
     if (!active) { setMsg({ ok: false, text: '请先点「开始」开启任务' }); return }
-    const isRing = category === '环装'
-    const name = isRing ? ringLevel : petType
-    if (!name) { setMsg({ ok: false, text: isRing ? '请选择环装级别' : '请选择宝宝类型' }); return }
+    let name = '', sub_type = ''
+    if (category === '宝宝') { name = petType; if (!name) { setMsg({ ok: false, text: '请选择宝宝类型' }); return } }
+    else if (category === '环装') { name = ringLevel; sub_type = ringSub; if (!name) { setMsg({ ok: false, text: '请选择环装级别' }); return } }
+    // 告密：只有坐标 + 时间，name/sub_type 留空
     if (coord.trim() && !/^\d{1,4}\s*[,，]\s*\d{1,4}$/.test(coord.trim())) { setMsg({ ok: false, text: '坐标格式应为 12,234' }); return }
     setBusy(true); setMsg(null)
     try {
-      await addCatchLog({ task_id: active.id, category, name, sub_type: isRing ? ringSub : '', coord: coord.trim(), current_time: curTime })
+      await addCatchLog({ task_id: active.id, category, name, sub_type, coord: coord.trim(), current_time: curTime })
       setMsg({ ok: true, text: '已录入 ✓' })
       setCoord(''); setCurTime(nowLocal())
       await Promise.all([fetchCatchLogs(active.id).then(setLogs), loadTasks()])
@@ -281,20 +282,21 @@ function CatchLogView({ petTypes }: { petTypes: string[] }) {
         <div style={{ marginBottom: 14 }}>
           <label style={labelStyle}>类别</label>
           <div style={{ display: 'flex', gap: 8 }}>
-            {(['宝宝', '环装'] as const).map(c => (
+            {(['宝宝', '环装', '告密'] as const).map(c => (
               <button className="btnH" key={c} onClick={() => setCategory(c)}
                 style={{ flex: 1, padding: '9px 0', fontSize: 13.5, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer', borderRadius: 8, border: '1px solid ' + (category === c ? '#c1452e' : '#e0d4bd'), background: category === c ? '#c1452e' : '#fff', color: category === c ? '#fff' : '#6a5a44' }}>{c}</button>
             ))}
           </div>
         </div>
-        {category === '宝宝' ? (
+        {category === '宝宝' && (
           <div style={{ marginBottom: 14 }}>
             <label style={labelStyle}>宝宝类型</label>
             <select value={petType} onChange={e => setPetType(e.target.value)} className="ctl">
               {petTypes.map(p => <option key={p} value={p}>{p}</option>)}
             </select>
           </div>
-        ) : (
+        )}
+        {category === '环装' && (
           <div style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
             <div style={{ flex: 1 }}>
               <label style={labelStyle}>环装级别</label>
@@ -311,15 +313,15 @@ function CatchLogView({ petTypes }: { petTypes: string[] }) {
           </div>
         )}
         <div style={{ marginBottom: 14 }}>
-          <label style={labelStyle}>坐标 <span style={{ color: '#a89878', fontWeight: 400 }}>（可选，如 12,234）</span></label>
-          <input value={coord} onChange={e => setCoord(e.target.value)} placeholder="12,234" className="ctl" />
-        </div>
-        <div style={{ marginBottom: 18 }}>
           <label style={labelStyle}>当前时间</label>
           <div style={{ display: 'flex', gap: 8 }}>
             <input type="datetime-local" value={curTime} onChange={e => setCurTime(e.target.value)} className="ctl" />
             <button className="btnH" onClick={() => setCurTime(nowLocal())} style={{ flexShrink: 0, padding: '0 14px', fontSize: 12.5, fontWeight: 700, color: '#a8351f', background: '#fbeee8', border: '1px solid #ecccc2', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}>现在</button>
           </div>
+        </div>
+        <div style={{ marginBottom: 18 }}>
+          <label style={labelStyle}>坐标 <span style={{ color: '#a89878', fontWeight: 400 }}>（可选，如 12,234）</span></label>
+          <input value={coord} onChange={e => setCoord(e.target.value)} placeholder="12,234" className="ctl" />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <button className="btnH" onClick={submit} disabled={busy || !active} style={btn('#c1452e', busy || !active)}>{busy ? '处理中…' : '确认录入'}</button>
