@@ -25,3 +25,42 @@ a { color: inherit; }
 }
 .panel { max-height: 60vh; overflow: auto; }
 .daquItem:hover, .srvItem:hover { filter: brightness(0.97); }
+
+/* ===== 抓宝宝表单控件（轻量美化） ===== */
+.ctl {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 11px 13px;
+  font-size: 14px;
+  font-family: inherit;
+  color: #2a221a;
+  background: #fff;
+  border: 1px solid #e2d6bf;
+  border-radius: 10px;
+  outline: none;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.ctl:hover { border-color: #d0b98f; }
+.ctl:focus { border-color: #c1452e; box-shadow: 0 0 0 3px rgba(193, 69, 46, .13); }
+select.ctl {
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  padding-right: 36px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23c1452e' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 13px;
+}
+/* datetime-local 的日历图标着色成暖色 */
+.ctl[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: .55;
+  filter: sepia(1) saturate(3) hue-rotate(-15deg);
+}
+.ctl[type="datetime-local"]:hover::-webkit-calendar-picker-indicator { opacity: .85; }
+
+/* 按钮微交互：悬停轻微提亮、按下下沉；禁用无效 */
+.btnH { transition: filter .15s ease, transform .05s ease, box-shadow .15s ease; }
+.btnH:not(:disabled):hover { filter: brightness(1.05); }
+.btnH:not(:disabled):active { transform: translateY(1px); }

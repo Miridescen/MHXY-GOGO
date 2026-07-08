@@ -228,7 +228,6 @@ function CatchLogView({ petTypes }: { petTypes: string[] }) {
     else setLogs([])
   }, [active?.id])
 
-  const inputStyle: CSSProperties = { width: '100%', boxSizing: 'border-box', padding: '10px 12px', fontSize: 14, fontFamily: 'inherit', color: '#2a221a', background: '#fff', border: '1px solid #e0d4bd', borderRadius: 8, outline: 'none' }
   const labelStyle: CSSProperties = { fontSize: 13, fontWeight: 700, color: '#5a4a34', marginBottom: 6, display: 'block' }
 
   const start = async () => {
@@ -265,11 +264,10 @@ function CatchLogView({ petTypes }: { petTypes: string[] }) {
   return (
     <div>
       {/* 大任务控制 */}
-      <div style={{ fontSize: 16, fontWeight: 800, color: '#2a221a', marginBottom: 16 }}>抓宝宝任务</div>
       <div style={{ maxWidth: 460, background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 14, padding: 20, marginBottom: 22 }}>
         <div style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
-          <button onClick={start} disabled={busy || !!active} style={btn('#3a7a5a', busy || !!active)}>开始</button>
-          <button onClick={finish} disabled={busy || !active} style={btn('#c1452e', busy || !active)}>结束</button>
+          <button className="btnH" onClick={start} disabled={busy || !!active} style={btn('#3a7a5a', busy || !!active)}>开始</button>
+          <button className="btnH" onClick={finish} disabled={busy || !active} style={btn('#c1452e', busy || !active)}>结束</button>
         </div>
         <div style={{ fontSize: 13, color: active ? '#3a7a5a' : '#a89878', fontWeight: 700 }}>
           {active
@@ -279,13 +277,12 @@ function CatchLogView({ petTypes }: { petTypes: string[] }) {
       </div>
 
       {/* 小任务：抓到一只录入一条（需在任务进行中） */}
-      <div style={{ fontSize: 15, fontWeight: 800, color: '#2a221a', marginBottom: 12 }}>抓到一只 · 录入</div>
       <div style={{ maxWidth: 460, background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 14, padding: 20, opacity: active ? 1 : 0.6 }}>
         <div style={{ marginBottom: 14 }}>
           <label style={labelStyle}>类别</label>
           <div style={{ display: 'flex', gap: 8 }}>
             {(['宝宝', '环装'] as const).map(c => (
-              <button key={c} onClick={() => setCategory(c)}
+              <button className="btnH" key={c} onClick={() => setCategory(c)}
                 style={{ flex: 1, padding: '9px 0', fontSize: 13.5, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer', borderRadius: 8, border: '1px solid ' + (category === c ? '#c1452e' : '#e0d4bd'), background: category === c ? '#c1452e' : '#fff', color: category === c ? '#fff' : '#6a5a44' }}>{c}</button>
             ))}
           </div>
@@ -293,7 +290,7 @@ function CatchLogView({ petTypes }: { petTypes: string[] }) {
         {category === '宝宝' ? (
           <div style={{ marginBottom: 14 }}>
             <label style={labelStyle}>宝宝类型</label>
-            <select value={petType} onChange={e => setPetType(e.target.value)} style={inputStyle}>
+            <select value={petType} onChange={e => setPetType(e.target.value)} className="ctl">
               {petTypes.map(p => <option key={p} value={p}>{p}</option>)}
             </select>
           </div>
@@ -301,13 +298,13 @@ function CatchLogView({ petTypes }: { petTypes: string[] }) {
           <div style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
             <div style={{ flex: 1 }}>
               <label style={labelStyle}>环装级别</label>
-              <select value={ringLevel} onChange={e => setRingLevel(e.target.value)} style={inputStyle}>
+              <select value={ringLevel} onChange={e => setRingLevel(e.target.value)} className="ctl">
                 {['60', '70', '80'].map(l => <option key={l} value={l}>{l}环</option>)}
               </select>
             </div>
             <div style={{ flex: 1 }}>
               <label style={labelStyle}>武器 / 装备</label>
-              <select value={ringSub} onChange={e => setRingSub(e.target.value as '武器' | '装备')} style={inputStyle}>
+              <select value={ringSub} onChange={e => setRingSub(e.target.value as '武器' | '装备')} className="ctl">
                 {['武器', '装备'].map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
@@ -315,17 +312,17 @@ function CatchLogView({ petTypes }: { petTypes: string[] }) {
         )}
         <div style={{ marginBottom: 14 }}>
           <label style={labelStyle}>坐标 <span style={{ color: '#a89878', fontWeight: 400 }}>（可选，如 12,234）</span></label>
-          <input value={coord} onChange={e => setCoord(e.target.value)} placeholder="12,234" style={inputStyle} />
+          <input value={coord} onChange={e => setCoord(e.target.value)} placeholder="12,234" className="ctl" />
         </div>
         <div style={{ marginBottom: 18 }}>
           <label style={labelStyle}>当前时间</label>
           <div style={{ display: 'flex', gap: 8 }}>
-            <input type="datetime-local" value={curTime} onChange={e => setCurTime(e.target.value)} style={inputStyle} />
-            <button onClick={() => setCurTime(nowLocal())} style={{ flexShrink: 0, padding: '0 14px', fontSize: 12.5, fontWeight: 700, color: '#a8351f', background: '#fbeee8', border: '1px solid #ecccc2', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}>现在</button>
+            <input type="datetime-local" value={curTime} onChange={e => setCurTime(e.target.value)} className="ctl" />
+            <button className="btnH" onClick={() => setCurTime(nowLocal())} style={{ flexShrink: 0, padding: '0 14px', fontSize: 12.5, fontWeight: 700, color: '#a8351f', background: '#fbeee8', border: '1px solid #ecccc2', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}>现在</button>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button onClick={submit} disabled={busy || !active} style={btn('#c1452e', busy || !active)}>{busy ? '处理中…' : '确认录入'}</button>
+          <button className="btnH" onClick={submit} disabled={busy || !active} style={btn('#c1452e', busy || !active)}>{busy ? '处理中…' : '确认录入'}</button>
           {!active && <span style={{ fontSize: 12.5, color: '#a89878' }}>请先点「开始」</span>}
           {msg && <span style={{ fontSize: 13, fontWeight: 700, color: msg.ok ? '#3a7a5a' : '#c1452e' }}>{msg.text}</span>}
         </div>
