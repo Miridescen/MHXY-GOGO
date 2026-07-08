@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { Routes, Route, NavLink, useLocation } from 'react-router-dom'
 import { fetchOverview, fmt, serveridOf, serverCell, addCatchLog, fetchCatchLogs, startCatchTask, endCatchTask, fetchCatchTasks, type Overview, type Item, type Region, type Roles, type RoleCell, type Equip, type EquipGroup, type CatchLog, type CatchTask } from './api'
 
 const CBG = 'https://xyq.cbg.163.com/'
@@ -379,8 +380,6 @@ export default function App() {
   const [mode, setMode] = useState<Mode>('global')
   const [daqu, setDaqu] = useState('')
   const [server, setServer] = useState('')
-  const [q, setQ] = useState('')
-  const [tab, setTab] = useState<'price' | 'catch'>('price')
   const [openDaqu, setOpenDaqu] = useState(false)
   const [openServer, setOpenServer] = useState(false)
   const selRef = useRef<HTMLDivElement>(null)
@@ -419,8 +418,9 @@ export default function App() {
   const region: Region | undefined = useMemo(() => data?.regions.find(r => r.daqu === daqu) || data?.regions[0], [data, daqu])
   const curSid = useMemo(() => serveridOf(region, server), [region, server])
   const isGlobal = mode === 'global'
+  const isPrice = useLocation().pathname !== '/catch'   // 区服选择器仅比价页显示
 
-  const list = useMemo(() => (data?.items || []).filter(it => (!q || it.name.indexOf(q) !== -1)), [data, q])
+  const list = useMemo(() => data?.items || [], [data])
 
   const rows: Row[] = useMemo(() => list.map(it => {
     const gLoc = `${it.low.daqu} · ${it.low.server}`
@@ -459,14 +459,21 @@ export default function App() {
       {/* TOP BAR */}
       <div style={S.topbar}>
         <div style={S.topInner}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 11, marginRight: 'auto' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
             <img src="/logo.png" alt="狗脑发热" style={S.logoImg} />
             <div>
               <div className="serif" style={{ fontSize: 19, fontWeight: 900, letterSpacing: 2, lineHeight: 1 }}>狗脑发热</div>
               <div style={{ fontSize: 10, letterSpacing: 2, color: '#c1452e', fontWeight: 700, marginTop: 4 }}>藏宝阁 · 全服比价</div>
             </div>
           </div>
-          <div ref={selRef} style={{ display: 'flex', alignItems: 'center', gap: 8, position: 'relative' }}>
+          {/* 顶部导航（路由切换页面） */}
+          <nav style={{ display: 'flex', gap: 4, marginLeft: 10 }}>
+            {([['/', '比价'], ['/catch', '抓宝宝记录']] as const).map(([to, label]) => (
+              <NavLink key={to} to={to} end
+                style={({ isActive }) => ({ padding: '8px 15px', fontSize: 14, fontWeight: 800, textDecoration: 'none', borderRadius: 8, color: isActive ? '#fff' : '#8a7a5c', background: isActive ? '#c1452e' : 'transparent' })}>{label}</NavLink>
+            ))}
+          </nav>
+          {isPrice && <div ref={selRef} style={{ display: 'flex', alignItems: 'center', gap: 8, position: 'relative', marginLeft: 'auto' }}>
             <span className="serif" style={{ fontSize: 12, color: '#a89878' }}>当前区服</span>
             <button style={S.daquBtn} onClick={() => { setOpenDaqu(v => !v); setOpenServer(false) }}>{daqu} <span style={{ color: '#c1452e' }}>▾</span></button>
             <button style={S.srvBtn} onClick={() => { setOpenServer(v => !v); setOpenDaqu(false) }}>{server} <span style={{ color: '#c1452e' }}>▾</span></button>
@@ -494,31 +501,19 @@ export default function App() {
                 })}
               </div>
             )}
-          </div>
+          </div>}
         </div>
       </div>
 
       {/* MAIN */}
       <div style={S.main}>
-        {/* TABS */}
-        <div style={{ display: 'flex', gap: 6, marginBottom: 18, borderBottom: '1px solid #ece2cf' }}>
-          {([['price', '比价'], ['catch', '抓宝宝记录']] as const).map(([k, label]) => (
-            <button key={k} onClick={() => setTab(k)}
-              style={{ padding: '9px 18px', fontSize: 14, fontWeight: 800, fontFamily: 'inherit', cursor: 'pointer', background: 'none', border: 'none', color: tab === k ? '#c1452e' : '#8a7a5c', borderBottom: tab === k ? '2px solid #c1452e' : '2px solid transparent', marginBottom: -1 }}>{label}</button>
-          ))}
-        </div>
-
-        {tab === 'price' && (<>
-        {/* mode + search */}
+        <Routes>
+          <Route path="/" element={<>
+        {/* 全服 / 本服 切换 */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
           <div style={{ display: 'flex', background: '#f1e7d6', border: '1px solid #e6dac4', borderRadius: 9, padding: 3 }}>
             <button style={isGlobal ? segOn : segOff} onClick={() => { setMode('global'); setOpenDaqu(false); setOpenServer(false) }}>全服最低价</button>
             <button style={!isGlobal ? segOn : segOff} onClick={() => { setMode('server'); setOpenDaqu(false); setOpenServer(false) }}>本服 · {server}</button>
-          </div>
-          <div style={S.search}>
-            <span style={{ color: '#c1452e' }}>⌕</span>
-            <input value={q} onChange={e => setQ(e.target.value)} placeholder="搜索物品名，如 持国 / 谛听 / 须弥"
-              style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontSize: 13.5, fontFamily: 'inherit', color: '#2a221a' }} />
           </div>
         </div>
 
@@ -607,13 +602,12 @@ export default function App() {
             </div>
           </>
         )}
-        </>)}
-
-        {tab === 'catch' && <CatchLogView petTypes={petTypes} />}
-
         <div style={{ marginTop: 32, textAlign: 'center', fontSize: 11, color: '#c0b49c', lineHeight: 1.7 }}>
           狗脑发热 · 梦幻西游藏宝阁全服比价 · 数据更新于 {data.generated_at}<br />价格每日更新，仅供参考，点击「去购买」以藏宝阁实时为准
         </div>
+          </>} />
+          <Route path="/catch" element={<CatchLogView petTypes={petTypes} />} />
+        </Routes>
       </div>
     </div>
   )
