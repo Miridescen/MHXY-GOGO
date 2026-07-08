@@ -39,7 +39,8 @@
   (async () => {
     try {
       const equipQs = (await (await fetch(BASE + '/api/role_queries')).json())
-        .filter(q => q.api_params && q.api_params.search_type === 'overall_search_equip');
+        .filter(q => q.api_params && q.api_params.search_type === 'overall_search_equip')
+        .filter(q => (q.conditions || {}).开服年限 !== 1);  // 去掉「1年内」档位，不爬取（省 1/3 装备配额）
       const doneSet = new Set((await (await fetch(BASE + '/api/role_done?date=' + today)).json()).ids);
       const attempted = new Set(JSON.parse(localStorage.getItem(ATT_KEY) || '[]'));
       const skip = id => doneSet.has(id) || attempted.has(id);

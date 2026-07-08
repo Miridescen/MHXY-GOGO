@@ -31,6 +31,8 @@
   const INGEST_URL = BASE + '/api/ingest';
   const ROLE_QUERIES_URL = BASE + '/api/role_queries';   // 角色搜索清单(数据驱动)
   const INGEST_ROLE_URL = BASE + '/api/ingest_role';
+  // 角色价格：从「全服最低价」里剔除这些 serverid（取下一个最低的）。45=时光·花样年华（价格异常，不计入）
+  const EXCLUDE_ROLE_SERVERIDS = [45];
   const INGEST_TOKEN = localStorage.getItem('__ingest_token') ||
     (function () { const t = (prompt('首次使用：请输入入库令牌（向管理员索取）') || '').trim();
       if (t) localStorage.setItem('__ingest_token', t); return t; })();
@@ -96,7 +98,7 @@
       const total = queries.length;
       for (let i = 0; i < total; i++) {
         const q = queries[i];
-        const p = new URLSearchParams({ act: 'recommd_by_role', search_type: 'overall_search_role', page: '1', count: '5', order_by: 'price ASC', view_loc: 'overall_search' });
+        const p = new URLSearchParams({ act: 'recommd_by_role', search_type: 'overall_search_role', page: '1', count: '10', order_by: 'price ASC', view_loc: 'overall_search' });
         for (const k in q.api_params) p.set(k, q.api_params[k]);
         try {
           const d = await (await fetch('https://xyq.cbg.163.com/cgi-bin/recommend.py?' + p, { credentials: 'include' })).json();
@@ -105,7 +107,7 @@
             bar.textContent = '⚠️ 角色爬取遇验证码（已完成 ' + i + '/' + total + '）！请在藏宝阁手动搜一次解验证码，再重跑脚本';
             return -2;
           }
-          const it = (d.equip_list || [])[0];
+          const it = (d.equip_list || []).find(e => !EXCLUDE_ROLE_SERVERIDS.includes(e.serverid));
           if (d.status === 1 && it) rows.push({ query_id: q.id, price_yuan: Math.round(it.price) / 100, serverid: it.serverid, server_name: it.server_name, area_name: it.area_name, eid: it.eid, link: 'https://xyq.cbg.163.com/equip?s=' + it.serverid + '&eid=' + it.eid });
         } catch (e) { /* 单条失败跳过 */ }
         bar.style.background = '#7b3fb0';   // 角色段用紫色，和召唤兽段(蓝)区分
