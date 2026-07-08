@@ -403,3 +403,49 @@ def ingest_role(body: RoleIngestBody, x_token: str = Header(default="")):
     db.close()
     _cache["data"] = None
     return {"ok": True, "inserted": len(data), "run_date": body.run_date}
+
+
+# ============ 抓宝宝记录 ============
+class CatchLogBody(BaseModel):
+    start_time: str = ""
+    pet_type: str = ""
+    coord: str = ""        # 可选，形如 "12,234"
+    current_time: str = ""
+
+
+def _ensure_catch_table(db):
+    # catch_time 而非 current_time：current_time 是 SQLite 保留关键字，SELECT 会被当成函数
+    db.execute("""CREATE TABLE IF NOT EXISTS catch_log(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        start_time TEXT, pet_type TEXT, coord TEXT,
+        catch_time TEXT, created_at TEXT)""")
+
+
+@app.post("/api/catch_log")
+def catch_log_add(body: CatchLogBody):
+    if not body.pet_type.strip():
+        raise HTTPException(400, "宝宝类型必填")
+    coord = body.coord.strip()
+    if coord and not re.fullmatch(r"\d{1,4}\s*[,，]\s*\d{1,4}", coord):
+        raise HTTPException(400, "坐标格式应为 12,234")
+    db = conn()
+    _ensure_catch_table(db)
+    now = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    cur = db.execute(
+        "INSERT INTO catch_log(start_time,pet_type,coord,catch_time,created_at) VALUES(?,?,?,?,?)",
+        (body.start_time.strip(), body.pet_type.strip(), coord, body.current_time.strip(), now))
+    db.commit()
+    rid = cur.lastrowid
+    db.close()
+    return {"ok": True, "id": rid}
+
+
+@app.get("/api/catch_logs")
+def catch_logs(limit: int = 30):
+    db = conn()
+    _ensure_catch_table(db)
+    rows = [dict(r) for r in db.execute(
+        "SELECT id,start_time,pet_type,coord,catch_time AS current_time,created_at FROM catch_log ORDER BY id DESC LIMIT ?",
+        (max(1, min(200, limit)),))]
+    db.close()
+    return {"rows": rows}

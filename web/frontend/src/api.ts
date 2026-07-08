@@ -63,6 +63,25 @@ export async function fetchOverview(): Promise<Overview> {
   return r.json()
 }
 
+// ---- 抓宝宝记录 ----
+export interface CatchLog { id: number; start_time: string; pet_type: string; coord: string; current_time: string; created_at: string }
+
+export async function addCatchLog(body: { start_time: string; pet_type: string; coord: string; current_time: string }): Promise<{ ok: boolean; id: number }> {
+  const r = await fetch('/api/catch_log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  if (!r.ok) {
+    let m = 'HTTP ' + r.status
+    try { m = (await r.json()).detail || m } catch { /* ignore */ }
+    throw new Error(m)
+  }
+  return r.json()
+}
+
+export async function fetchCatchLogs(): Promise<CatchLog[]> {
+  const r = await fetch('/api/catch_logs?_=' + Date.now())
+  if (!r.ok) throw new Error('HTTP ' + r.status)
+  return (await r.json()).rows
+}
+
 // ---- 比价纯函数 ----
 export const fmt = (n: number) => '¥' + Number(n).toLocaleString('en-US')
 

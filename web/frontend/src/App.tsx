@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { fetchOverview, fmt, serveridOf, serverCell, type Overview, type Item, type Region, type Roles, type RoleCell, type Equip, type EquipGroup } from './api'
+import { fetchOverview, fmt, serveridOf, serverCell, addCatchLog, fetchCatchLogs, type Overview, type Item, type Region, type Roles, type RoleCell, type Equip, type EquipGroup, type CatchLog } from './api'
 
 const CBG = 'https://xyq.cbg.163.com/'
 const SEL_KEY = '__mhxy_sel'   // localStorage: 记住用户选的区服/模式
@@ -199,6 +199,92 @@ function RoleMatrix({ roles }: { roles: Roles }) {
   )
 }
 
+// 抓宝宝记录：表单录入 + 最近记录
+function CatchLogView({ petTypes }: { petTypes: string[] }) {
+  const nowLocal = () => {
+    const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
+    return d.toISOString().slice(0, 16)   // 'YYYY-MM-DDTHH:mm'（本地时区）
+  }
+  const [startTime, setStartTime] = useState('')
+  const [petType, setPetType] = useState(petTypes[0] || '')
+  const [coord, setCoord] = useState('')
+  const [curTime, setCurTime] = useState(nowLocal())
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [logs, setLogs] = useState<CatchLog[]>([])
+
+  const load = () => fetchCatchLogs().then(setLogs).catch(() => { /* ignore */ })
+  useEffect(() => { load() }, [])
+
+  const inputStyle: CSSProperties = { width: '100%', boxSizing: 'border-box', padding: '10px 12px', fontSize: 14, fontFamily: 'inherit', color: '#2a221a', background: '#fff', border: '1px solid #e0d4bd', borderRadius: 8, outline: 'none' }
+  const labelStyle: CSSProperties = { fontSize: 13, fontWeight: 700, color: '#5a4a34', marginBottom: 6, display: 'block' }
+
+  const submit = async () => {
+    if (!petType) { setMsg({ ok: false, text: '请选择宝宝类型' }); return }
+    if (coord.trim() && !/^\d{1,4}\s*[,，]\s*\d{1,4}$/.test(coord.trim())) { setMsg({ ok: false, text: '坐标格式应为 12,234' }); return }
+    setBusy(true); setMsg(null)
+    try {
+      await addCatchLog({ start_time: startTime, pet_type: petType, coord: coord.trim(), current_time: curTime })
+      setMsg({ ok: true, text: '已录入 ✓' })
+      setStartTime(''); setCoord(''); setCurTime(nowLocal())
+      load()
+    } catch (e) { setMsg({ ok: false, text: '录入失败：' + ((e as Error).message || e) }) }
+    setBusy(false)
+  }
+
+  return (
+    <div>
+      <div style={{ fontSize: 16, fontWeight: 800, color: '#2a221a', marginBottom: 16 }}>抓宝宝记录 · 录入</div>
+      <div style={{ maxWidth: 460, background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 14, padding: 20 }}>
+        <div style={{ marginBottom: 14 }}>
+          <label style={labelStyle}>开始时间</label>
+          <input type="datetime-local" value={startTime} onChange={e => setStartTime(e.target.value)} style={inputStyle} />
+        </div>
+        <div style={{ marginBottom: 14 }}>
+          <label style={labelStyle}>宝宝类型</label>
+          <select value={petType} onChange={e => setPetType(e.target.value)} style={inputStyle}>
+            {petTypes.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+        </div>
+        <div style={{ marginBottom: 14 }}>
+          <label style={labelStyle}>坐标 <span style={{ color: '#a89878', fontWeight: 400 }}>（可选，如 12,234）</span></label>
+          <input value={coord} onChange={e => setCoord(e.target.value)} placeholder="12,234" style={inputStyle} />
+        </div>
+        <div style={{ marginBottom: 18 }}>
+          <label style={labelStyle}>当前时间</label>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input type="datetime-local" value={curTime} onChange={e => setCurTime(e.target.value)} style={inputStyle} />
+            <button onClick={() => setCurTime(nowLocal())} style={{ flexShrink: 0, padding: '0 14px', fontSize: 12.5, fontWeight: 700, color: '#a8351f', background: '#fbeee8', border: '1px solid #ecccc2', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}>现在</button>
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button onClick={submit} disabled={busy} style={{ padding: '11px 26px', fontSize: 14, fontWeight: 800, color: '#fff', background: busy ? '#d99b8e' : '#c1452e', border: 'none', borderRadius: 8, cursor: busy ? 'default' : 'pointer', fontFamily: 'inherit' }}>{busy ? '录入中…' : '确认录入'}</button>
+          {msg && <span style={{ fontSize: 13, fontWeight: 700, color: msg.ok ? '#3a7a5a' : '#c1452e' }}>{msg.text}</span>}
+        </div>
+      </div>
+
+      {logs.length > 0 && (
+        <div style={{ marginTop: 26 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#5a4a34', marginBottom: 10 }}>最近记录（{logs.length}）</div>
+          <div style={{ background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 12, overflow: 'hidden' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr 1fr 1.6fr', gap: 8, padding: '10px 14px', fontSize: 12, fontWeight: 700, color: '#a89878', borderBottom: '1px solid #ece2cf' }}>
+              <div>开始时间</div><div>宝宝</div><div>坐标</div><div>当前时间</div>
+            </div>
+            {logs.map(l => (
+              <div key={l.id} style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr 1fr 1.6fr', gap: 8, padding: '10px 14px', fontSize: 12.5, color: '#3a3226', borderTop: '1px solid #f3ead9' }}>
+                <div>{(l.start_time || '—').replace('T', ' ')}</div>
+                <div style={{ fontWeight: 700 }}>{l.pet_type}</div>
+                <div>{l.coord || '—'}</div>
+                <div>{(l.current_time || '—').replace('T', ' ')}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function App() {
   const [data, setData] = useState<Overview | null>(null)
   const [err, setErr] = useState('')
@@ -206,6 +292,7 @@ export default function App() {
   const [daqu, setDaqu] = useState('')
   const [server, setServer] = useState('')
   const [q, setQ] = useState('')
+  const [tab, setTab] = useState<'price' | 'catch'>('price')
   const [openDaqu, setOpenDaqu] = useState(false)
   const [openServer, setOpenServer] = useState(false)
   const selRef = useRef<HTMLDivElement>(null)
@@ -273,6 +360,11 @@ export default function App() {
   const priceColLabel = isGlobal ? '全服最低价' : '本服价格'
   const col3Label = isGlobal ? '所在区服' : '全服最低'
   const gridCols = isGlobal ? '2.7fr 1.3fr 1.5fr 1fr 1fr' : '2.4fr 1.2fr 1.9fr 1fr 1fr'
+  // 宝宝类型下拉：取首页数据里「宝宝」品类的物品名（即已爬取的四种），兜底写死
+  const petTypes = (() => {
+    const p = data.items.filter(it => it.cat === '宝宝').map(it => it.name)
+    return p.length ? p : ['持国巡守', '广目巡守', '多闻巡守', '谛听']
+  })()
 
   return (
     <div>
@@ -320,6 +412,15 @@ export default function App() {
 
       {/* MAIN */}
       <div style={S.main}>
+        {/* TABS */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 18, borderBottom: '1px solid #ece2cf' }}>
+          {([['price', '比价'], ['catch', '抓宝宝记录']] as const).map(([k, label]) => (
+            <button key={k} onClick={() => setTab(k)}
+              style={{ padding: '9px 18px', fontSize: 14, fontWeight: 800, fontFamily: 'inherit', cursor: 'pointer', background: 'none', border: 'none', color: tab === k ? '#c1452e' : '#8a7a5c', borderBottom: tab === k ? '2px solid #c1452e' : '2px solid transparent', marginBottom: -1 }}>{label}</button>
+          ))}
+        </div>
+
+        {tab === 'price' && (<>
         {/* mode + search */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
           <div style={{ display: 'flex', background: '#f1e7d6', border: '1px solid #e6dac4', borderRadius: 9, padding: 3 }}>
@@ -418,6 +519,9 @@ export default function App() {
             </div>
           </>
         )}
+        </>)}
+
+        {tab === 'catch' && <CatchLogView petTypes={petTypes} />}
 
         <div style={{ marginTop: 32, textAlign: 'center', fontSize: 11, color: '#c0b49c', lineHeight: 1.7 }}>
           狗脑发热 · 梦幻西游藏宝阁全服比价 · 数据更新于 {data.generated_at}<br />价格每日更新，仅供参考，点击「去购买」以藏宝阁实时为准
