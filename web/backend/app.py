@@ -413,6 +413,7 @@ RING_SUB_TYPES = ("武器", "装备")
 class CatchLogBody(BaseModel):
     task_id: int
     category: str = "宝宝"      # 宝宝 | 环装 | 告密
+    scene: str = ""            # 宝宝→所在场景; 环装/告密留空
     name: str = ""             # 宝宝→宝宝名; 环装→级别(60/70/80); 告密→空
     sub_type: str = ""         # 环装→武器/装备; 宝宝/告密留空
     coord: str = ""            # 可选，形如 "12,234"
@@ -429,11 +430,14 @@ def _ensure_catch_tables(db):
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         start_time TEXT, end_time TEXT, created_at TEXT)""")
     # 小任务：任务期间每抓到一只（catch_time 而非 current_time，后者是 SQLite 保留字）
-    # category=宝宝/环装; name=宝宝名或环装级别; sub_type=环装的武器/装备
+    # category=宝宝/环装/告密; scene=宝宝所在场景; name=宝宝名或环装级别; sub_type=环装的武器/装备
     db.execute("""CREATE TABLE IF NOT EXISTS catch_log(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        task_id INTEGER, category TEXT, name TEXT, sub_type TEXT, coord TEXT,
+        task_id INTEGER, category TEXT, scene TEXT, name TEXT, sub_type TEXT, coord TEXT,
         catch_time TEXT, created_at TEXT)""")
+    # 迁移：老表补 scene 列
+    if "scene" not in [r[1] for r in db.execute("PRAGMA table_info(catch_log)")]:
+        db.execute("ALTER TABLE catch_log ADD COLUMN scene TEXT")
 
 
 @app.post("/api/catch_task/start")
@@ -490,10 +494,11 @@ def catch_log_add(body: CatchLogBody):
     if t["end_time"]:
         db.close()
         raise HTTPException(400, "任务已结束，请重新开始")
+    scene = body.scene.strip() if category == "宝宝" else ""
     now = _server_now()
     cur = db.execute(
-        "INSERT INTO catch_log(task_id,category,name,sub_type,coord,catch_time,created_at) VALUES(?,?,?,?,?,?,?)",
-        (body.task_id, category, name, sub_type, coord, body.current_time.strip(), now))
+        "INSERT INTO catch_log(task_id,category,scene,name,sub_type,coord,catch_time,created_at) VALUES(?,?,?,?,?,?,?,?)",
+        (body.task_id, category, scene, name, sub_type, coord, body.current_time.strip(), now))
     db.commit()
     rid = cur.lastrowid
     db.close()
@@ -520,12 +525,12 @@ def catch_logs(task_id: int = 0, limit: int = 100):
     _ensure_catch_tables(db)
     if task_id:
         rows = db.execute(
-            "SELECT id,task_id,category,name,sub_type,coord,catch_time AS current_time,created_at "
+            "SELECT id,task_id,category,scene,name,sub_type,coord,catch_time AS current_time,created_at "
             "FROM catch_log WHERE task_id=? ORDER BY id DESC LIMIT ?",
             (task_id, max(1, min(500, limit))))
     else:
         rows = db.execute(
-            "SELECT id,task_id,category,name,sub_type,coord,catch_time AS current_time,created_at "
+            "SELECT id,task_id,category,scene,name,sub_type,coord,catch_time AS current_time,created_at "
             "FROM catch_log ORDER BY id DESC LIMIT ?",
             (max(1, min(500, limit)),))
     out = [dict(r) for r in rows]

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Routes, Route, NavLink, useLocation } from 'react-router-dom'
-import { fetchOverview, fmt, serveridOf, serverCell, addCatchLog, fetchCatchLogs, startCatchTask, endCatchTask, fetchCatchTasks, type Overview, type Item, type Region, type Roles, type RoleCell, type Equip, type EquipGroup, type CatchLog, type CatchTask } from './api'
+import { fetchOverview, fmt, serveridOf, serverCell, addCatchLog, fetchCatchLogs, startCatchTask, endCatchTask, fetchCatchTasks, fetchScenePets, type Overview, type Item, type Region, type Roles, type RoleCell, type Equip, type EquipGroup, type CatchLog, type CatchTask, type SceneGroup } from './api'
 
 const CBG = 'https://xyq.cbg.163.com/'
 const SEL_KEY = '__mhxy_sel'   // localStorage: 记住用户选的区服/模式
@@ -201,13 +201,15 @@ function RoleMatrix({ roles }: { roles: Roles }) {
 }
 
 // 抓宝宝：一次任务(开始→结束) + 期间每抓到一只录入一条，二者关联
-function CatchLogView({ petTypes }: { petTypes: string[] }) {
+function CatchLogView() {
   const nowLocal = () => {
     const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
     return d.toISOString().slice(0, 16)   // 'YYYY-MM-DDTHH:mm'（本地时区）
   }
   const [category, setCategory] = useState<'宝宝' | '环装' | '告密'>('宝宝')
-  const [petType, setPetType] = useState(petTypes[0] || '')
+  const [scenes, setScenes] = useState<SceneGroup[]>([])
+  const [sceneId, setSceneId] = useState<number>(0)
+  const [petName, setPetName] = useState('')
   const [ringLevel, setRingLevel] = useState('60')
   const [ringSub, setRingSub] = useState<'武器' | '装备'>('武器')
   const [coord, setCoord] = useState('')
@@ -221,9 +223,21 @@ function CatchLogView({ petTypes }: { petTypes: string[] }) {
 
   // 进行中的任务 = 最近一条未结束的（服务端为准，刷新/换设备也不丢）
   const active = tasks.find(t => !t.end_time) || null
+  const curScene = scenes.find(s => s.id === sceneId) || null
 
   const loadTasks = () => fetchCatchTasks().then(setTasks).catch(() => { /* ignore */ })
   useEffect(() => { loadTasks() }, [])
+  useEffect(() => {
+    fetchScenePets().then(s => {
+      setScenes(s)
+      if (s[0]) { setSceneId(s[0].id); setPetName(s[0].pets[0]?.name || '') }
+    }).catch(() => { /* ignore */ })
+  }, [])
+  const pickScene = (id: number) => {
+    setSceneId(id)
+    const sc = scenes.find(s => s.id === id)
+    setPetName(sc?.pets[0]?.name || '')
+  }
   useEffect(() => {
     if (active) fetchCatchLogs(active.id).then(setLogs).catch(() => { /* ignore */ })
     else setLogs([])
@@ -246,14 +260,14 @@ function CatchLogView({ petTypes }: { petTypes: string[] }) {
   }
   const submit = async () => {
     if (!active) { setMsg({ ok: false, text: '请先点「开始」开启任务' }); return }
-    let name = '', sub_type = ''
-    if (category === '宝宝') { name = petType; if (!name) { setMsg({ ok: false, text: '请选择宝宝类型' }); return } }
+    let name = '', sub_type = '', scene = ''
+    if (category === '宝宝') { name = petName; scene = curScene?.name || ''; if (!name) { setMsg({ ok: false, text: '请选择宝宝' }); return } }
     else if (category === '环装') { name = ringLevel; sub_type = ringSub; if (!name) { setMsg({ ok: false, text: '请选择环装级别' }); return } }
     // 告密：只有坐标 + 时间，name/sub_type 留空
     if (coord.trim() && !/^\d{1,4}\s*[,，]\s*\d{1,4}$/.test(coord.trim())) { setMsg({ ok: false, text: '坐标格式应为 12,234' }); return }
     setBusy(true); setMsg(null)
     try {
-      await addCatchLog({ task_id: active.id, category, name, sub_type, coord: coord.trim(), current_time: curTime })
+      await addCatchLog({ task_id: active.id, category, scene, name, sub_type, coord: coord.trim(), current_time: curTime })
       setMsg({ ok: true, text: '已录入 ✓' })
       setCoord(''); setCurTime(nowLocal())
       await Promise.all([fetchCatchLogs(active.id).then(setLogs), loadTasks()])
@@ -290,11 +304,19 @@ function CatchLogView({ petTypes }: { petTypes: string[] }) {
           </div>
         </div>
         {category === '宝宝' && (
-          <div style={{ marginBottom: 14 }}>
-            <label style={labelStyle}>宝宝类型</label>
-            <select value={petType} onChange={e => setPetType(e.target.value)} className="ctl">
-              {petTypes.map(p => <option key={p} value={p}>{p}</option>)}
-            </select>
+          <div style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>场景</label>
+              <select value={sceneId} onChange={e => pickScene(Number(e.target.value))} className="ctl">
+                {scenes.map(s => <option key={s.id} value={s.id}>{s.name}（{s.pets.length}）</option>)}
+              </select>
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>宝宝</label>
+              <select value={petName} onChange={e => setPetName(e.target.value)} className="ctl">
+                {(curScene?.pets || []).map(p => <option key={p.id} value={p.name}>{p.name}{p.carry_lv ? `（${p.carry_lv}级）` : ''}</option>)}
+              </select>
+            </div>
           </div>
         )}
         {category === '环装' && (
@@ -342,7 +364,10 @@ function CatchLogView({ petTypes }: { petTypes: string[] }) {
             {logs.map(l => (
               <div key={l.id} style={{ display: 'grid', gridTemplateColumns: '0.6fr 1.2fr 1fr 1.4fr', gap: 8, padding: '9px 14px', fontSize: 12.5, color: '#3a3226', borderTop: '1px solid #f3ead9' }}>
                 <div style={{ color: '#a89878' }}>{l.category}</div>
-                <div style={{ fontWeight: 700 }}>{catchLabel(l)}</div>
+                <div>
+                  <span style={{ fontWeight: 700 }}>{catchLabel(l)}</span>
+                  {l.category === '宝宝' && l.scene && <div style={{ fontSize: 10.5, color: '#a89878', marginTop: 1 }}>{l.scene}</div>}
+                </div>
                 <div>{l.coord || '—'}</div>
                 <div>{(l.current_time || '—').replace('T', ' ')}</div>
               </div>
@@ -448,11 +473,6 @@ export default function App() {
   const priceColLabel = isGlobal ? '全服最低价' : '本服价格'
   const col3Label = isGlobal ? '所在区服' : '全服最低'
   const gridCols = isGlobal ? '2.7fr 1.3fr 1.5fr 1fr 1fr' : '2.4fr 1.2fr 1.9fr 1fr 1fr'
-  // 宝宝类型下拉：取首页数据里「宝宝」品类的物品名（即已爬取的四种），兜底写死
-  const petTypes = (() => {
-    const p = data.items.filter(it => it.cat === '宝宝').map(it => it.name)
-    return p.length ? p : ['持国巡守', '广目巡守', '多闻巡守', '谛听']
-  })()
 
   return (
     <div>
@@ -606,7 +626,7 @@ export default function App() {
           狗脑发热 · 梦幻西游藏宝阁全服比价 · 数据更新于 {data.generated_at}<br />价格每日更新，仅供参考，点击「去购买」以藏宝阁实时为准
         </div>
           </>} />
-          <Route path="/catch" element={<CatchLogView petTypes={petTypes} />} />
+          <Route path="/catch" element={<CatchLogView />} />
         </Routes>
       </div>
     </div>
