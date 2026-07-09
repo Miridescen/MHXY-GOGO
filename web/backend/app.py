@@ -531,3 +531,61 @@ def catch_logs(task_id: int = 0, limit: int = 100):
     out = [dict(r) for r in rows]
     db.close()
     return {"rows": out}
+
+
+# ============ 场景 / 宝宝 数据（scene + pet + scene_pet，供抓宝宝等功能复用）============
+def _ensure_pet_tables(db):
+    db.execute("""CREATE TABLE IF NOT EXISTS scene(
+        id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE)""")
+    db.execute("""CREATE TABLE IF NOT EXISTS pet(
+        id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE,
+        carry_lv INTEGER DEFAULT 0, data TEXT)""")
+    db.execute("""CREATE TABLE IF NOT EXISTS scene_pet(
+        scene_id INTEGER, pet_id INTEGER, UNIQUE(scene_id, pet_id))""")
+
+
+@app.get("/api/scenes")
+def scenes_list():
+    """场景列表 + 每个场景的宝宝数量。"""
+    db = conn()
+    _ensure_pet_tables(db)
+    rows = [dict(r) for r in db.execute(
+        """SELECT s.id, s.name, COUNT(sp.pet_id) AS pet_count
+           FROM scene s LEFT JOIN scene_pet sp ON sp.scene_id = s.id
+           GROUP BY s.id ORDER BY pet_count DESC, s.name""")]
+    db.close()
+    return {"rows": rows}
+
+
+@app.get("/api/scene_pets")
+def scene_pets_all():
+    """所有场景及其宝宝（供前端「场景 → 宝宝」联动下拉一次取全）。"""
+    db = conn()
+    _ensure_pet_tables(db)
+    scenes = {}
+    for r in db.execute(
+        """SELECT s.id AS sid, s.name AS sname, p.id AS pid, p.name AS pname, p.carry_lv
+           FROM scene s JOIN scene_pet sp ON sp.scene_id = s.id
+                        JOIN pet p ON p.id = sp.pet_id
+           ORDER BY s.name, p.carry_lv, p.name"""):
+        s = scenes.setdefault(r["sid"], {"id": r["sid"], "name": r["sname"], "pets": []})
+        s["pets"].append({"id": r["pid"], "name": r["pname"], "carry_lv": r["carry_lv"]})
+    db.close()
+    return {"scenes": list(scenes.values())}
+
+
+@app.get("/api/pets")
+def pets_list(scene_id: int = 0):
+    """宝宝列表；传 scene_id 则只返回该场景的宝宝。"""
+    db = conn()
+    _ensure_pet_tables(db)
+    if scene_id:
+        rows = db.execute(
+            """SELECT p.id, p.name, p.carry_lv FROM pet p
+               JOIN scene_pet sp ON sp.pet_id = p.id
+               WHERE sp.scene_id = ? ORDER BY p.carry_lv, p.name""", (scene_id,))
+    else:
+        rows = db.execute("SELECT id, name, carry_lv FROM pet ORDER BY carry_lv, name")
+    out = [dict(r) for r in rows]
+    db.close()
+    return {"rows": out}
