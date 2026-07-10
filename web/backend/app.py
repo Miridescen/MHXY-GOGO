@@ -576,7 +576,7 @@ def scene_pets_all():
            FROM scene s JOIN scene_pet sp ON sp.scene_id = s.id
                         JOIN pet p ON p.id = sp.pet_id
            WHERE s.hidden = 0
-           ORDER BY s.name, p.carry_lv, p.name"""):
+           ORDER BY s.name, p.carry_lv DESC, p.name"""):
         s = scenes.setdefault(r["sid"], {"id": r["sid"], "name": r["sname"], "pets": []})
         s["pets"].append({"id": r["pid"], "name": r["pname"], "carry_lv": r["carry_lv"]})
     db.close()
