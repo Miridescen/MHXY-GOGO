@@ -541,7 +541,9 @@ def catch_logs(task_id: int = 0, limit: int = 100):
 # ============ 场景 / 宝宝 数据（scene + pet + scene_pet，供抓宝宝等功能复用）============
 def _ensure_pet_tables(db):
     db.execute("""CREATE TABLE IF NOT EXISTS scene(
-        id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE)""")
+        id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE, hidden INTEGER DEFAULT 0)""")
+    if "hidden" not in [r[1] for r in db.execute("PRAGMA table_info(scene)")]:
+        db.execute("ALTER TABLE scene ADD COLUMN hidden INTEGER DEFAULT 0")
     db.execute("""CREATE TABLE IF NOT EXISTS pet(
         id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE,
         carry_lv INTEGER DEFAULT 0, data TEXT)""")
@@ -557,6 +559,7 @@ def scenes_list():
     rows = [dict(r) for r in db.execute(
         """SELECT s.id, s.name, COUNT(sp.pet_id) AS pet_count
            FROM scene s LEFT JOIN scene_pet sp ON sp.scene_id = s.id
+           WHERE s.hidden = 0
            GROUP BY s.id ORDER BY pet_count DESC, s.name""")]
     db.close()
     return {"rows": rows}
@@ -572,6 +575,7 @@ def scene_pets_all():
         """SELECT s.id AS sid, s.name AS sname, p.id AS pid, p.name AS pname, p.carry_lv
            FROM scene s JOIN scene_pet sp ON sp.scene_id = s.id
                         JOIN pet p ON p.id = sp.pet_id
+           WHERE s.hidden = 0
            ORDER BY s.name, p.carry_lv, p.name"""):
         s = scenes.setdefault(r["sid"], {"id": r["sid"], "name": r["sname"], "pets": []})
         s["pets"].append({"id": r["pid"], "name": r["pname"], "carry_lv": r["carry_lv"]})
