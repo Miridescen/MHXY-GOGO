@@ -416,7 +416,8 @@ class CatchLogBody(BaseModel):
     scene: str = ""            # 宝宝→所在场景; 环装/告密留空
     name: str = ""             # 宝宝→宝宝名; 环装→级别(60/70/80); 告密→空
     sub_type: str = ""         # 环装→武器/装备; 宝宝/告密留空
-    coord: str = ""            # 可选，形如 "12,234"
+    coord_x: str = ""          # 可选，X 坐标（纯数字）
+    coord_y: str = ""          # 可选，Y 坐标（纯数字）
     current_time: str = ""     # 抓到的时间（前端默认 now，可改）
 
 
@@ -431,13 +432,24 @@ def _ensure_catch_tables(db):
         start_time TEXT, end_time TEXT, created_at TEXT)""")
     # 小任务：任务期间每抓到一只（catch_time 而非 current_time，后者是 SQLite 保留字）
     # category=宝宝/环装/告密; scene=宝宝所在场景; name=宝宝名或环装级别; sub_type=环装的武器/装备
+    # coord_x/coord_y=坐标（可选，整数）
     db.execute("""CREATE TABLE IF NOT EXISTS catch_log(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        task_id INTEGER, category TEXT, scene TEXT, name TEXT, sub_type TEXT, coord TEXT,
+        task_id INTEGER, category TEXT, scene TEXT, name TEXT, sub_type TEXT,
+        coord_x INTEGER, coord_y INTEGER,
         catch_time TEXT, created_at TEXT)""")
-    # 迁移：老表补 scene 列
-    if "scene" not in [r[1] for r in db.execute("PRAGMA table_info(catch_log)")]:
+    # 迁移：老表补列（scene / coord_x / coord_y；旧 coord "x,y" 拆入新列）
+    cols = [r[1] for r in db.execute("PRAGMA table_info(catch_log)")]
+    if "scene" not in cols:
         db.execute("ALTER TABLE catch_log ADD COLUMN scene TEXT")
+    if "coord_x" not in cols:
+        db.execute("ALTER TABLE catch_log ADD COLUMN coord_x INTEGER")
+        db.execute("ALTER TABLE catch_log ADD COLUMN coord_y INTEGER")
+        if "coord" in cols:
+            for rid, coord in db.execute("SELECT id, coord FROM catch_log WHERE coord IS NOT NULL AND coord != ''").fetchall():
+                m = re.fullmatch(r"(\d+)\s*[,，]\s*(\d+)", str(coord).strip())
+                if m:
+                    db.execute("UPDATE catch_log SET coord_x=?, coord_y=? WHERE id=?", (int(m.group(1)), int(m.group(2)), rid))
 
 
 @app.post("/api/catch_task/start")
@@ -482,9 +494,11 @@ def catch_log_add(body: CatchLogBody):
     else:   # 告密：只有坐标 + 时间
         name = ""
         sub_type = ""
-    coord = body.coord.strip()
-    if coord and not re.fullmatch(r"\d{1,4}\s*[,，]\s*\d{1,4}", coord):
-        raise HTTPException(400, "坐标格式应为 12,234")
+    cx, cy = body.coord_x.strip(), body.coord_y.strip()
+    if (cx and not cx.isdigit()) or (cy and not cy.isdigit()):
+        raise HTTPException(400, "坐标只能是数字")
+    if bool(cx) != bool(cy):
+        raise HTTPException(400, "X/Y 坐标需成对填写")
     db = conn()
     _ensure_catch_tables(db)
     t = db.execute("SELECT id, end_time FROM catch_task WHERE id=?", (body.task_id,)).fetchone()
@@ -497,8 +511,9 @@ def catch_log_add(body: CatchLogBody):
     scene = body.scene.strip() if category == "宝宝" else ""
     now = _server_now()
     cur = db.execute(
-        "INSERT INTO catch_log(task_id,category,scene,name,sub_type,coord,catch_time,created_at) VALUES(?,?,?,?,?,?,?,?)",
-        (body.task_id, category, scene, name, sub_type, coord, body.current_time.strip(), now))
+        "INSERT INTO catch_log(task_id,category,scene,name,sub_type,coord_x,coord_y,catch_time,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        (body.task_id, category, scene, name, sub_type,
+         int(cx) if cx else None, int(cy) if cy else None, body.current_time.strip(), now))
     db.commit()
     rid = cur.lastrowid
     db.close()
@@ -525,12 +540,12 @@ def catch_logs(task_id: int = 0, limit: int = 100):
     _ensure_catch_tables(db)
     if task_id:
         rows = db.execute(
-            "SELECT id,task_id,category,scene,name,sub_type,coord,catch_time AS current_time,created_at "
+            "SELECT id,task_id,category,scene,name,sub_type,coord_x,coord_y,catch_time AS current_time,created_at "
             "FROM catch_log WHERE task_id=? ORDER BY id DESC LIMIT ?",
             (task_id, max(1, min(500, limit))))
     else:
         rows = db.execute(
-            "SELECT id,task_id,category,scene,name,sub_type,coord,catch_time AS current_time,created_at "
+            "SELECT id,task_id,category,scene,name,sub_type,coord_x,coord_y,catch_time AS current_time,created_at "
             "FROM catch_log ORDER BY id DESC LIMIT ?",
             (max(1, min(500, limit)),))
     out = [dict(r) for r in rows]

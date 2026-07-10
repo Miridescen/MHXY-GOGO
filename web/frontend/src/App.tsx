@@ -212,8 +212,10 @@ function CatchLogView() {
   const [petName, setPetName] = useState('')
   const [ringLevel, setRingLevel] = useState('60')
   const [ringSub, setRingSub] = useState<'武器' | '装备'>('武器')
-  const [coord, setCoord] = useState('')
+  const [coordX, setCoordX] = useState('')
+  const [coordY, setCoordY] = useState('')
   const [curTime, setCurTime] = useState(nowLocal())
+  const numOnly = (v: string) => v.replace(/\D/g, '').slice(0, 4)   // 只留数字，最多4位
   const catchLabel = (c: { category: string; name: string; sub_type: string }) =>
     c.category === '环装' ? `${c.name}环·${c.sub_type}` : c.category === '告密' ? '告密' : c.name
   const [busy, setBusy] = useState(false)
@@ -264,12 +266,12 @@ function CatchLogView() {
     if (category === '宝宝') { name = petName; scene = curScene?.name || ''; if (!name) { setMsg({ ok: false, text: '请选择宝宝' }); return } }
     else if (category === '环装') { name = ringLevel; sub_type = ringSub; if (!name) { setMsg({ ok: false, text: '请选择环装级别' }); return } }
     // 告密：只有坐标 + 时间，name/sub_type 留空
-    if (coord.trim() && !/^\d{1,4}\s*[,，]\s*\d{1,4}$/.test(coord.trim())) { setMsg({ ok: false, text: '坐标格式应为 12,234' }); return }
+    if (!!coordX.trim() !== !!coordY.trim()) { setMsg({ ok: false, text: 'X/Y 坐标需成对填写' }); return }
     setBusy(true); setMsg(null)
     try {
-      await addCatchLog({ task_id: active.id, category, scene, name, sub_type, coord: coord.trim(), current_time: curTime })
+      await addCatchLog({ task_id: active.id, category, scene, name, sub_type, coord_x: coordX.trim(), coord_y: coordY.trim(), current_time: curTime })
       setMsg({ ok: true, text: '已录入 ✓' })
-      setCoord(''); setCurTime(nowLocal())
+      setCoordX(''); setCoordY(''); setCurTime(nowLocal())
       await Promise.all([fetchCatchLogs(active.id).then(setLogs), loadTasks()])
     } catch (e) { setMsg({ ok: false, text: '录入失败：' + ((e as Error).message || e) }) }
     setBusy(false)
@@ -343,8 +345,11 @@ function CatchLogView() {
           </div>
         </div>
         <div style={{ marginBottom: 18 }}>
-          <label style={labelStyle}>坐标 <span style={{ color: '#a89878', fontWeight: 400 }}>（可选，如 12,234）</span></label>
-          <input value={coord} onChange={e => setCoord(e.target.value)} placeholder="12,234" className="ctl" />
+          <label style={labelStyle}>坐标 <span style={{ color: '#a89878', fontWeight: 400 }}>（可选，纯数字）</span></label>
+          <div style={{ display: 'flex', gap: 12 }}>
+            <input value={coordX} onChange={e => setCoordX(numOnly(e.target.value))} inputMode="numeric" placeholder="X 轴" className="ctl" />
+            <input value={coordY} onChange={e => setCoordY(numOnly(e.target.value))} inputMode="numeric" placeholder="Y 轴" className="ctl" />
+          </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <button className="btnH" onClick={submit} disabled={busy || !active} style={btn('#c1452e', busy || !active)}>{busy ? '处理中…' : '确认录入'}</button>
@@ -368,7 +373,7 @@ function CatchLogView() {
                   <span style={{ fontWeight: 700 }}>{catchLabel(l)}</span>
                   {l.category === '宝宝' && l.scene && <div style={{ fontSize: 10.5, color: '#a89878', marginTop: 1 }}>{l.scene}</div>}
                 </div>
-                <div>{l.coord || '—'}</div>
+                <div>{l.coord_x != null && l.coord_y != null ? `${l.coord_x},${l.coord_y}` : '—'}</div>
                 <div>{(l.current_time || '—').replace('T', ' ')}</div>
               </div>
             ))}
