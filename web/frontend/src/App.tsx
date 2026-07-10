@@ -290,9 +290,11 @@ function CatchLogView() {
   const btn = (bg: string, disabled: boolean): CSSProperties => ({ padding: '11px 24px', fontSize: 14, fontWeight: 800, color: '#fff', background: disabled ? '#d9cdbb' : bg, border: 'none', borderRadius: 8, cursor: disabled ? 'default' : 'pointer', fontFamily: 'inherit' })
 
   return (
-    <div>
+    <div style={{ display: 'flex', gap: 22, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+      {/* 左列：任务控制 + 录入表单 */}
+      <div style={{ flex: '0 1 460px', minWidth: 300 }}>
       {/* 大任务控制 */}
-      <div style={{ maxWidth: 460, background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 14, padding: 20, marginBottom: 22 }}>
+      <div style={{ background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 14, padding: 20, marginBottom: 22 }}>
         <div style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
           <button className="btnH" onClick={start} disabled={busy || !!active} style={btn('#3a7a5a', busy || !!active)}>开始</button>
           <button className="btnH" onClick={finish} disabled={busy || !active} style={btn('#c1452e', busy || !active)}>结束</button>
@@ -301,7 +303,6 @@ function CatchLogView() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 13, color: '#3a7a5a', fontWeight: 700 }}>任务进行中 · 开始于 {active.start_time}</span>
             <span className="serif" style={{ fontSize: 20, fontWeight: 900, color: '#c1452e', fontVariantNumeric: 'tabular-nums' }}>⏱ {fmtDur(elapsed)}</span>
-            <span style={{ fontSize: 13, color: '#3a7a5a', fontWeight: 700 }}>已录 {logs.length} 条</span>
           </div>
         ) : (
           <div style={{ fontSize: 13, color: '#a89878', fontWeight: 700 }}>当前无进行中的任务，点「开始」开启一次</div>
@@ -309,7 +310,7 @@ function CatchLogView() {
       </div>
 
       {/* 小任务：抓到一只录入一条（需在任务进行中） */}
-      <div style={{ maxWidth: 460, background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 14, padding: 20, opacity: active ? 1 : 0.6 }}>
+      <div style={{ background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 14, padding: 20, opacity: active ? 1 : 0.6 }}>
         <div style={{ marginBottom: 14 }}>
           <label style={labelStyle}>类别</label>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -368,15 +369,16 @@ function CatchLogView() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <button className="btnH" onClick={submit} disabled={busy || !active} style={btn('#c1452e', busy || !active)}>{busy ? '处理中…' : '确认录入'}</button>
           {!active && <span style={{ fontSize: 12.5, color: '#a89878' }}>请先点「开始」</span>}
-          {msg && <span style={{ fontSize: 13, fontWeight: 700, color: msg.ok ? '#3a7a5a' : '#c1452e' }}>{msg.text}</span>}
+          {msg && !msg.ok && <span style={{ fontSize: 13, fontWeight: 700, color: '#c1452e' }}>{msg.text}</span>}
         </div>
       </div>
+      </div>
 
-      {/* 本次任务已抓列表 */}
+      {/* 右列：本次任务记录 */}
       {active && logs.length > 0 && (
-        <div style={{ marginTop: 24 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#5a4a34', marginBottom: 10 }}>本次任务已抓（{logs.length}）</div>
-          <div style={{ maxWidth: 460, background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 12, overflow: 'hidden' }}>
+        <div style={{ flex: '1 1 340px', minWidth: 300 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#5a4a34', marginBottom: 10 }}>本次任务记录（{logs.length}）</div>
+          <div style={{ background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 12, overflow: 'hidden' }}>
             <div style={{ display: 'grid', gridTemplateColumns: '0.6fr 1.2fr 1fr 1.4fr', gap: 8, padding: '9px 14px', fontSize: 12, fontWeight: 700, color: '#a89878', borderBottom: '1px solid #ece2cf' }}>
               <div>类别</div><div>项目</div><div>坐标</div><div>时间</div>
             </div>
@@ -395,25 +397,6 @@ function CatchLogView() {
         </div>
       )}
 
-      {/* 历史任务（含进行中），后续按大任务统计 */}
-      {tasks.length > 0 && (
-        <div style={{ marginTop: 26 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#5a4a34', marginBottom: 10 }}>任务记录（{tasks.length}）</div>
-          <div style={{ background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 12, overflow: 'hidden' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '0.5fr 1.6fr 1.6fr 0.8fr', gap: 8, padding: '10px 14px', fontSize: 12, fontWeight: 700, color: '#a89878', borderBottom: '1px solid #ece2cf' }}>
-              <div>#</div><div>开始</div><div>结束</div><div style={{ textAlign: 'right' }}>抓到</div>
-            </div>
-            {tasks.map(t => (
-              <div key={t.id} style={{ display: 'grid', gridTemplateColumns: '0.5fr 1.6fr 1.6fr 0.8fr', gap: 8, padding: '10px 14px', fontSize: 12.5, color: '#3a3226', borderTop: '1px solid #f3ead9' }}>
-                <div style={{ color: '#a89878' }}>{t.id}</div>
-                <div>{t.start_time}</div>
-                <div style={{ color: t.end_time ? '#3a3226' : '#3a7a5a', fontWeight: t.end_time ? 400 : 700 }}>{t.end_time || '进行中'}</div>
-                <div style={{ textAlign: 'right', fontWeight: 800 }}>{t.catches}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   )
 }
