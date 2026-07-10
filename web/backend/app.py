@@ -406,16 +406,16 @@ def ingest_role(body: RoleIngestBody, x_token: str = Header(default="")):
 
 
 # ============ 抓宝宝：大任务(catch_task) + 小任务/每次抓到(catch_log) ============
-CATCH_CATEGORIES = ("宝宝", "环装", "告密")
+CATCH_CATEGORIES = ("召唤兽", "环装", "告密")
 RING_SUB_TYPES = ("武器", "装备")
 
 
 class CatchLogBody(BaseModel):
     task_id: int
-    category: str = "宝宝"      # 宝宝 | 环装 | 告密
-    scene: str = ""            # 宝宝→所在场景; 环装/告密留空
-    name: str = ""             # 宝宝→宝宝名; 环装→级别(60/70/80); 告密→空
-    sub_type: str = ""         # 环装→武器/装备; 宝宝/告密留空
+    category: str = "召唤兽"    # 召唤兽 | 环装 | 告密
+    scene: str = ""            # 召唤兽→所在场景; 环装/告密留空
+    name: str = ""             # 召唤兽→召唤兽名; 环装→级别(60/70/80); 告密→空
+    sub_type: str = ""         # 环装→武器/装备; 召唤兽/告密留空
     coord_x: str = ""          # 可选，X 坐标（纯数字）
     coord_y: str = ""          # 可选，Y 坐标（纯数字）
     current_time: str = ""     # 抓到的时间（前端默认 now，可改）
@@ -481,15 +481,15 @@ def catch_log_add(body: CatchLogBody):
     name = body.name.strip()
     sub_type = body.sub_type.strip()
     if category not in CATCH_CATEGORIES:
-        raise HTTPException(400, "类别应为 宝宝 / 环装 / 告密")
+        raise HTTPException(400, "类别应为 召唤兽 / 环装 / 告密")
     if category == "环装":
         if not name:
             raise HTTPException(400, "请选择环装级别")
         if sub_type not in RING_SUB_TYPES:
             raise HTTPException(400, "环装需选择 武器 或 装备")
-    elif category == "宝宝":
+    elif category == "召唤兽":
         if not name:
-            raise HTTPException(400, "请选择宝宝类型")
+            raise HTTPException(400, "请选择召唤兽")
         sub_type = ""
     else:   # 告密：只有坐标 + 时间
         name = ""
@@ -506,7 +506,7 @@ def catch_log_add(body: CatchLogBody):
     if t["end_time"]:
         db.close()
         raise HTTPException(400, "任务已结束，请重新开始")
-    scene = body.scene.strip() if category == "宝宝" else ""
+    scene = body.scene.strip() if category == "召唤兽" else ""
     now = _server_now()
     cur = db.execute(
         "INSERT INTO catch_log(task_id,category,scene,name,sub_type,coord_x,coord_y,catch_time,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
@@ -589,7 +589,7 @@ def scene_pets_all():
            FROM scene s JOIN scene_pet sp ON sp.scene_id = s.id
                         JOIN pet p ON p.id = sp.pet_id
            WHERE s.hidden = 0
-           ORDER BY s.name, p.carry_lv DESC, p.name"""):
+           ORDER BY s.name, p.carry_lv DESC, LTRIM(p.name, '变异'), LENGTH(p.name)"""):
         s = scenes.setdefault(r["sid"], {"id": r["sid"], "name": r["sname"], "pets": []})
         s["pets"].append({"id": r["pid"], "name": r["pname"], "carry_lv": r["carry_lv"]})
     db.close()
@@ -605,9 +605,9 @@ def pets_list(scene_id: int = 0):
         rows = db.execute(
             """SELECT p.id, p.name, p.carry_lv FROM pet p
                JOIN scene_pet sp ON sp.pet_id = p.id
-               WHERE sp.scene_id = ? ORDER BY p.carry_lv, p.name""", (scene_id,))
+               WHERE sp.scene_id = ? ORDER BY p.carry_lv DESC, LTRIM(p.name, '变异'), LENGTH(p.name)""", (scene_id,))
     else:
-        rows = db.execute("SELECT id, name, carry_lv FROM pet ORDER BY carry_lv, name")
+        rows = db.execute("SELECT id, name, carry_lv FROM pet ORDER BY carry_lv DESC, LTRIM(name, '变异'), LENGTH(name)")
     out = [dict(r) for r in rows]
     db.close()
     return {"rows": out}

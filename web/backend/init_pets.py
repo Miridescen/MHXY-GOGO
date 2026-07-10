@@ -54,6 +54,17 @@ def main():
                 row = c.execute("SELECT id FROM pet WHERE name=?", (pn,)).fetchone()
             c.execute("INSERT OR IGNORE INTO scene_pet(scene_id,pet_id) VALUES(?,?)", (sid, row[0]))
 
+    # 变异召唤兽：每个基础召唤兽派生「变异X」，等级相同、继承全部场景关联（幂等，重跑不会生成变异变异X）
+    bases = c.execute("SELECT id, name, carry_lv, data FROM pet WHERE name NOT LIKE '变异%'").fetchall()
+    for bid, bname, blv, bdata in bases:
+        mname = "变异" + bname
+        c.execute("""INSERT INTO pet(name,carry_lv,data) VALUES(?,?,?)
+            ON CONFLICT(name) DO UPDATE SET carry_lv=excluded.carry_lv""",
+                  (mname, blv, json.dumps({"mutant_of": bname}, ensure_ascii=False)))
+        mid = c.execute("SELECT id FROM pet WHERE name=?", (mname,)).fetchone()[0]
+        c.execute("""INSERT OR IGNORE INTO scene_pet(scene_id, pet_id)
+                     SELECT scene_id, ? FROM scene_pet WHERE pet_id=?""", (mid, bid))
+
     # 应用可见性：VISIBLE_SCENES 内的显示，其余隐藏
     if VISIBLE_SCENES:
         c.execute("UPDATE scene SET hidden = 1")

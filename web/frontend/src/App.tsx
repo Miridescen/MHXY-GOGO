@@ -206,7 +206,7 @@ function CatchLogView() {
     const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
     return d.toISOString().slice(0, 16)   // 'YYYY-MM-DDTHH:mm'（本地时区）
   }
-  const [category, setCategory] = useState<'宝宝' | '环装' | '告密'>('宝宝')
+  const [category, setCategory] = useState<'召唤兽' | '环装' | '告密'>('召唤兽')
   const [scenes, setScenes] = useState<SceneGroup[]>([])
   const [sceneId, setSceneId] = useState<number>(0)
   const [petName, setPetName] = useState('')
@@ -274,7 +274,7 @@ function CatchLogView() {
   const submit = async () => {
     if (!active) { setMsg({ ok: false, text: '请先点「开始」开启任务' }); return }
     let name = '', sub_type = '', scene = ''
-    if (category === '宝宝') { name = petName; scene = curScene?.name || ''; if (!name) { setMsg({ ok: false, text: '请选择宝宝' }); return } }
+    if (category === '召唤兽') { name = petName; scene = curScene?.name || ''; if (!name) { setMsg({ ok: false, text: '请选择召唤兽' }); return } }
     else if (category === '环装') { name = ringLevel; sub_type = ringSub; if (!name) { setMsg({ ok: false, text: '请选择环装级别' }); return } }
     // 告密：只有坐标 + 时间，name/sub_type 留空。坐标可填可不填（输入框已限制只能输数字）
     setBusy(true); setMsg(null)
@@ -314,13 +314,13 @@ function CatchLogView() {
         <div style={{ marginBottom: 14 }}>
           <label style={labelStyle}>类别</label>
           <div style={{ display: 'flex', gap: 8 }}>
-            {(['宝宝', '环装', '告密'] as const).map(c => (
+            {(['召唤兽', '环装', '告密'] as const).map(c => (
               <button className="btnH" key={c} onClick={() => setCategory(c)}
                 style={{ flex: 1, padding: '9px 0', fontSize: 13.5, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer', borderRadius: 8, border: '1px solid ' + (category === c ? '#c1452e' : '#e0d4bd'), background: category === c ? '#c1452e' : '#fff', color: category === c ? '#fff' : '#6a5a44' }}>{c}</button>
             ))}
           </div>
         </div>
-        {category === '宝宝' && (
+        {category === '召唤兽' && (
           <div style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
             <div style={{ flex: 1 }}>
               <label style={labelStyle}>场景</label>
@@ -329,7 +329,7 @@ function CatchLogView() {
               </select>
             </div>
             <div style={{ flex: 1 }}>
-              <label style={labelStyle}>宝宝</label>
+              <label style={labelStyle}>召唤兽</label>
               <select value={petName} onChange={e => setPetName(e.target.value)} className="ctl">
                 {(curScene?.pets || []).map(p => <option key={p.id} value={p.name}>{p.name}{p.carry_lv ? `（${p.carry_lv}级）` : ''}</option>)}
               </select>
@@ -387,7 +387,7 @@ function CatchLogView() {
                 <div style={{ color: '#a89878' }}>{l.category}</div>
                 <div>
                   <span style={{ fontWeight: 700 }}>{catchLabel(l)}</span>
-                  {l.category === '宝宝' && l.scene && <div style={{ fontSize: 10.5, color: '#a89878', marginTop: 1 }}>{l.scene}</div>}
+                  {l.category === '召唤兽' && l.scene && <div style={{ fontSize: 10.5, color: '#a89878', marginTop: 1 }}>{l.scene}</div>}
                 </div>
                 <div>{l.coord_x == null && l.coord_y == null ? '—' : `${l.coord_x ?? '—'},${l.coord_y ?? '—'}`}</div>
                 <div>{(l.current_time || '—').replace('T', ' ')}</div>
