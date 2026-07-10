@@ -6,7 +6,7 @@ const CBG = 'https://xyq.cbg.163.com/'
 const SEL_KEY = '__mhxy_sel'   // localStorage: 记住用户选的区服/模式
 
 const S: Record<string, CSSProperties> = {
-  topbar: { position: 'sticky', top: 0, zIndex: 40, background: '#faf6eecc', backdropFilter: 'saturate(1.2) blur(8px)', borderBottom: '1px solid #ece2cf' },
+  topbar: { position: 'fixed', top: 0, left: 0, right: 0, zIndex: 40, background: '#faf6eecc', backdropFilter: 'saturate(1.2) blur(8px)', borderBottom: '1px solid #ece2cf' },
   topInner: { maxWidth: 1140, margin: '0 auto', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' },
   logoBox: { width: 42, height: 42, borderRadius: 9, background: '#c1452e', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 23, color: '#faf0e0', boxShadow: 'inset 0 0 0 2px rgba(255,240,220,.35),0 3px 10px rgba(193,69,46,.3)' },
   logoImg: { width: 44, height: 44, borderRadius: 10, objectFit: 'cover', boxShadow: '0 3px 10px rgba(120,70,160,.32)' },
@@ -227,6 +227,17 @@ function CatchLogView() {
   const active = tasks.find(t => !t.end_time) || null
   const curScene = scenes.find(s => s.id === sceneId) || null
 
+  // 任务进行中的实时计时器（每秒走字）
+  const [nowTick, setNowTick] = useState(() => Date.now())
+  useEffect(() => {
+    if (!active) return
+    const t = setInterval(() => setNowTick(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [active?.id])
+  const elapsed = active ? Math.max(0, Math.floor((nowTick - new Date(active.start_time.replace(' ', 'T')).getTime()) / 1000)) : 0
+  const fmtDur = (s: number) =>
+    `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
+
   const loadTasks = () => fetchCatchTasks().then(setTasks).catch(() => { /* ignore */ })
   useEffect(() => { loadTasks() }, [])
   useEffect(() => {
@@ -286,11 +297,15 @@ function CatchLogView() {
           <button className="btnH" onClick={start} disabled={busy || !!active} style={btn('#3a7a5a', busy || !!active)}>开始</button>
           <button className="btnH" onClick={finish} disabled={busy || !active} style={btn('#c1452e', busy || !active)}>结束</button>
         </div>
-        <div style={{ fontSize: 13, color: active ? '#3a7a5a' : '#a89878', fontWeight: 700 }}>
-          {active
-            ? `任务进行中 · 开始于 ${active.start_time} · 本次已抓 ${logs.length} 只`
-            : '当前无进行中的任务，点「开始」开启一次'}
-        </div>
+        {active ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 13, color: '#3a7a5a', fontWeight: 700 }}>任务进行中 · 开始于 {active.start_time}</span>
+            <span className="serif" style={{ fontSize: 20, fontWeight: 900, color: '#c1452e', fontVariantNumeric: 'tabular-nums' }}>⏱ {fmtDur(elapsed)}</span>
+            <span style={{ fontSize: 13, color: '#3a7a5a', fontWeight: 700 }}>已录 {logs.length} 条</span>
+          </div>
+        ) : (
+          <div style={{ fontSize: 13, color: '#a89878', fontWeight: 700 }}>当前无进行中的任务，点「开始」开启一次</div>
+        )}
       </div>
 
       {/* 小任务：抓到一只录入一条（需在任务进行中） */}
@@ -412,6 +427,18 @@ export default function App() {
   const [openDaqu, setOpenDaqu] = useState(false)
   const [openServer, setOpenServer] = useState(false)
   const selRef = useRef<HTMLDivElement>(null)
+  const topbarRef = useRef<HTMLDivElement>(null)
+  const [topbarH, setTopbarH] = useState(73)   // header 固定后占位高度（窄屏换行时自适应）
+
+  useEffect(() => {
+    const el = topbarRef.current
+    if (!el) return
+    const update = () => setTopbarH(el.offsetHeight)
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [data])   // topbar 在 data 加载后才渲染
 
   useEffect(() => {
     fetchOverview().then(d => {
@@ -480,8 +507,8 @@ export default function App() {
 
   return (
     <div>
-      {/* TOP BAR */}
-      <div style={S.topbar}>
+      {/* TOP BAR（fixed 固定，不随页面滚动） */}
+      <div ref={topbarRef} style={S.topbar}>
         <div style={S.topInner}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
             <img src="/logo.png" alt="狗脑发热" style={S.logoImg} />
@@ -492,7 +519,7 @@ export default function App() {
           </div>
           {/* 顶部导航（路由切换页面） */}
           <nav style={{ display: 'flex', gap: 4, marginLeft: 10 }}>
-            {([['/', '比价'], ['/catch', '抓宝宝记录']] as const).map(([to, label]) => (
+            {([['/', '比价'], ['/catch', '场景记录']] as const).map(([to, label]) => (
               <NavLink key={to} to={to} end
                 style={({ isActive }) => ({ padding: '8px 15px', fontSize: 14, fontWeight: 800, textDecoration: 'none', borderRadius: 8, color: isActive ? '#fff' : '#8a7a5c', background: isActive ? '#c1452e' : 'transparent' })}>{label}</NavLink>
             ))}
@@ -528,6 +555,8 @@ export default function App() {
           </div>}
         </div>
       </div>
+      {/* fixed header 的占位（高度自适应换行） */}
+      <div style={{ height: topbarH }} />
 
       {/* MAIN */}
       <div style={S.main}>
