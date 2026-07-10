@@ -497,8 +497,6 @@ def catch_log_add(body: CatchLogBody):
     cx, cy = body.coord_x.strip(), body.coord_y.strip()
     if (cx and not cx.isdigit()) or (cy and not cy.isdigit()):
         raise HTTPException(400, "坐标只能是数字")
-    if bool(cx) != bool(cy):
-        raise HTTPException(400, "X/Y 坐标需成对填写")
     db = conn()
     _ensure_catch_tables(db)
     t = db.execute("SELECT id, end_time FROM catch_task WHERE id=?", (body.task_id,)).fetchone()

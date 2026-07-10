@@ -265,8 +265,7 @@ function CatchLogView() {
     let name = '', sub_type = '', scene = ''
     if (category === '宝宝') { name = petName; scene = curScene?.name || ''; if (!name) { setMsg({ ok: false, text: '请选择宝宝' }); return } }
     else if (category === '环装') { name = ringLevel; sub_type = ringSub; if (!name) { setMsg({ ok: false, text: '请选择环装级别' }); return } }
-    // 告密：只有坐标 + 时间，name/sub_type 留空
-    if (!!coordX.trim() !== !!coordY.trim()) { setMsg({ ok: false, text: 'X/Y 坐标需成对填写' }); return }
+    // 告密：只有坐标 + 时间，name/sub_type 留空。坐标可填可不填（输入框已限制只能输数字）
     setBusy(true); setMsg(null)
     try {
       await addCatchLog({ task_id: active.id, category, scene, name, sub_type, coord_x: coordX.trim(), coord_y: coordY.trim(), current_time: curTime })
@@ -373,7 +372,7 @@ function CatchLogView() {
                   <span style={{ fontWeight: 700 }}>{catchLabel(l)}</span>
                   {l.category === '宝宝' && l.scene && <div style={{ fontSize: 10.5, color: '#a89878', marginTop: 1 }}>{l.scene}</div>}
                 </div>
-                <div>{l.coord_x != null && l.coord_y != null ? `${l.coord_x},${l.coord_y}` : '—'}</div>
+                <div>{l.coord_x == null && l.coord_y == null ? '—' : `${l.coord_x ?? '—'},${l.coord_y ?? '—'}`}</div>
                 <div>{(l.current_time || '—').replace('T', ' ')}</div>
               </div>
             ))}
