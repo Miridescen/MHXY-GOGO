@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { Routes, Route, NavLink, useLocation } from 'react-router-dom'
-import { fetchOverview, fmt, serveridOf, serverCell, addCatchLog, fetchCatchLogs, startCatchTask, endCatchTask, fetchCatchTasks, fetchScenePets, type Overview, type Item, type Region, type Roles, type RoleCell, type Equip, type EquipGroup, type CatchLog, type CatchTask, type SceneGroup } from './api'
+import { Routes, Route, NavLink, useLocation, useNavigate, Link } from 'react-router-dom'
+import { fetchOverview, fmt, serveridOf, serverCell, addCatchLog, fetchCatchLogs, startCatchTask, endCatchTask, fetchCatchTasks, fetchScenePets, authLogin, authRegister, authMe, authLogout, CHANNEL_LABEL, type AuthUser, type Overview, type Item, type Region, type Roles, type RoleCell, type Equip, type EquipGroup, type CatchLog, type CatchTask, type SceneGroup } from './api'
 
 const CBG = 'https://xyq.cbg.163.com/'
 const SEL_KEY = '__mhxy_sel'   // localStorage: 记住用户选的区服/模式
@@ -195,6 +195,80 @@ function RoleMatrix({ roles }: { roles: Roles }) {
             ))}
           </tbody>
         </table>
+      </div>
+    </div>
+  )
+}
+
+// 登录 / 注册 页面（网页注册为「普通」渠道；微信/抖音渠道由小程序端创建）
+function AuthView({ mode, onAuth }: { mode: 'login' | 'register'; onAuth: (u: AuthUser) => void }) {
+  const nav = useNavigate()
+  const isLogin = mode === 'login'
+  const [username, setUsername] = useState('')
+  const [nickname, setNickname] = useState('')
+  const [password, setPassword] = useState('')
+  const [password2, setPassword2] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+
+  const labelStyle: CSSProperties = { fontSize: 13, fontWeight: 700, color: '#5a4a34', marginBottom: 6, display: 'block' }
+
+  const submit = async () => {
+    setErr('')
+    if (!username.trim()) { setErr('请输入用户名'); return }
+    if (!password) { setErr('请输入密码'); return }
+    if (!isLogin && password.length < 6) { setErr('密码至少 6 位'); return }
+    if (!isLogin && password !== password2) { setErr('两次密码不一致'); return }
+    setBusy(true)
+    try {
+      const u = isLogin ? await authLogin(username.trim(), password) : await authRegister(username.trim(), password, nickname.trim())
+      onAuth(u)
+      nav('/')
+    } catch (e) { setErr((e as Error).message || '操作失败') }
+    setBusy(false)
+  }
+
+  return (
+    <div style={{ maxWidth: 400, margin: '30px auto 0' }}>
+      <div style={{ background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 14, padding: 26 }}>
+        <div className="serif" style={{ fontSize: 20, fontWeight: 900, color: '#2a221a', marginBottom: 4 }}>{isLogin ? '登录' : '注册'}</div>
+        <div style={{ fontSize: 12, color: '#a89878', marginBottom: 18 }}>
+          {isLogin ? '登录后可使用记录等功能' : '网页注册为「普通」渠道；微信 / 抖音渠道账号由对应小程序自动创建'}
+        </div>
+        <div style={{ marginBottom: 14 }}>
+          <label style={labelStyle}>用户名</label>
+          <input value={username} onChange={e => setUsername(e.target.value)} placeholder="2-20 位，中英文、数字、下划线" className="ctl" />
+        </div>
+        {!isLogin && (
+          <div style={{ marginBottom: 14 }}>
+            <label style={labelStyle}>昵称 <span style={{ color: '#a89878', fontWeight: 400 }}>（可选，默认同用户名）</span></label>
+            <input value={nickname} onChange={e => setNickname(e.target.value)} placeholder="怎么称呼你" className="ctl" />
+          </div>
+        )}
+        <div style={{ marginBottom: 14 }}>
+          <label style={labelStyle}>密码</label>
+          <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder={isLogin ? '密码' : '至少 6 位'} className="ctl"
+            onKeyDown={e => { if (isLogin && e.key === 'Enter') submit() }} />
+        </div>
+        {!isLogin && (
+          <div style={{ marginBottom: 14 }}>
+            <label style={labelStyle}>确认密码</label>
+            <input type="password" value={password2} onChange={e => setPassword2(e.target.value)} placeholder="再输一遍" className="ctl"
+              onKeyDown={e => { if (e.key === 'Enter') submit() }} />
+          </div>
+        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 20 }}>
+          <button className="btnH" onClick={submit} disabled={busy}
+            style={{ flex: 1, padding: '12px 0', fontSize: 14, fontWeight: 800, color: '#fff', background: busy ? '#d9cdbb' : '#c1452e', border: 'none', borderRadius: 8, cursor: busy ? 'default' : 'pointer', fontFamily: 'inherit' }}>
+            {busy ? '处理中…' : (isLogin ? '登录' : '注册并登录')}
+          </button>
+        </div>
+        {err && <div style={{ marginTop: 12, fontSize: 13, fontWeight: 700, color: '#c1452e' }}>{err}</div>}
+        <div style={{ marginTop: 18, fontSize: 13, color: '#8a7a5c', textAlign: 'center' }}>
+          {isLogin
+            ? <>没有账号？<Link to="/register" style={{ color: '#c1452e', fontWeight: 700 }}>去注册</Link></>
+            : <>已有账号？<Link to="/login" style={{ color: '#c1452e', fontWeight: 700 }}>去登录</Link></>}
+        </div>
       </div>
     </div>
   )
@@ -410,6 +484,9 @@ export default function App() {
   const [openDaqu, setOpenDaqu] = useState(false)
   const [openServer, setOpenServer] = useState(false)
   const selRef = useRef<HTMLDivElement>(null)
+  const [user, setUser] = useState<AuthUser | null>(null)
+  useEffect(() => { authMe().then(setUser).catch(() => { /* ignore */ }) }, [])
+  const doLogout = async () => { await authLogout(); setUser(null) }
   const topbarRef = useRef<HTMLDivElement>(null)
   const [topbarH, setTopbarH] = useState(73)   // header 固定后占位高度（窄屏换行时自适应）
 
@@ -536,6 +613,23 @@ export default function App() {
               </div>
             )}
           </div>}
+          {/* 用户区：登录状态 / 登录注册入口 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: isPrice ? 0 : 'auto' }}>
+            {user ? (
+              <>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#2a221a' }}>{user.nickname}</span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: '#fff', padding: '2px 8px', borderRadius: 9,
+                  background: user.channel === 'wechat' ? '#07c160' : user.channel === 'douyin' ? '#161823' : '#8a7a5c' }}>
+                  {CHANNEL_LABEL[user.channel] || user.channel}
+                </span>
+                <button className="btnH" onClick={doLogout}
+                  style={{ fontSize: 12, fontWeight: 700, color: '#8a7a5c', background: 'transparent', border: '1px solid #e0d2b8', borderRadius: 7, padding: '5px 10px', cursor: 'pointer', fontFamily: 'inherit' }}>退出</button>
+              </>
+            ) : (
+              <NavLink to="/login"
+                style={{ fontSize: 13, fontWeight: 800, textDecoration: 'none', color: '#a8351f', background: '#fbeee8', border: '1px solid #ecccc2', borderRadius: 8, padding: '7px 14px' }}>登录 / 注册</NavLink>
+            )}
+          </div>
         </div>
       </div>
       {/* fixed header 的占位（高度自适应换行） */}
@@ -643,6 +737,8 @@ export default function App() {
         </div>
           </>} />
           <Route path="/catch" element={<CatchLogView />} />
+          <Route path="/login" element={<AuthView mode="login" onAuth={setUser} />} />
+          <Route path="/register" element={<AuthView mode="register" onAuth={setUser} />} />
         </Routes>
       </div>
     </div>

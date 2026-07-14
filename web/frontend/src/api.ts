@@ -106,6 +106,37 @@ export async function fetchCatchLogs(taskId?: number): Promise<CatchLog[]> {
   return (await r.json()).rows
 }
 
+// ---- 用户系统：注册/登录（channel: normal 普通 | wechat 微信 | douyin 抖音）----
+export interface AuthUser { id: number; username: string; nickname: string; channel: string }
+export const CHANNEL_LABEL: Record<string, string> = { normal: '普通', wechat: '微信', douyin: '抖音' }
+
+const TOKEN_KEY = '__mhxy_token'
+export const getToken = () => localStorage.getItem(TOKEN_KEY) || ''
+export const setToken = (t: string) => { if (t) localStorage.setItem(TOKEN_KEY, t); else localStorage.removeItem(TOKEN_KEY) }
+
+export async function authRegister(username: string, password: string, nickname: string): Promise<AuthUser> {
+  const d = await jsonOrThrow(await fetch('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password, nickname }) }))
+  setToken(d.token)
+  return d.user
+}
+export async function authLogin(username: string, password: string): Promise<AuthUser> {
+  const d = await jsonOrThrow(await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) }))
+  setToken(d.token)
+  return d.user
+}
+export async function authMe(): Promise<AuthUser | null> {
+  const t = getToken()
+  if (!t) return null
+  const r = await fetch('/api/auth/me', { headers: { 'X-Auth-Token': t } })
+  if (!r.ok) { if (r.status === 401) setToken(''); return null }
+  return (await r.json()).user
+}
+export async function authLogout(): Promise<void> {
+  const t = getToken()
+  if (t) await fetch('/api/auth/logout', { method: 'POST', headers: { 'X-Auth-Token': t } }).catch(() => { /* ignore */ })
+  setToken('')
+}
+
 // ---- 比价纯函数 ----
 export const fmt = (n: number) => '¥' + Number(n).toLocaleString('en-US')
 

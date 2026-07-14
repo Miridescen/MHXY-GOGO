@@ -17,6 +17,8 @@ import os
 import re
 import json
 import sqlite3
+import hashlib
+import secrets
 import datetime as dt
 
 from fastapi import FastAPI, HTTPException, Header
@@ -611,3 +613,121 @@ def pets_list(scene_id: int = 0):
     out = [dict(r) for r in rows]
     db.close()
     return {"rows": out}
+
+
+# ============ 用户系统：注册 / 登录 / 会话（渠道: normal 普通 | wechat 微信 | douyin 抖音）============
+USER_CHANNELS = ("normal", "wechat", "douyin")
+SESSION_DAYS = 30
+
+
+class RegisterBody(BaseModel):
+    username: str
+    password: str
+    nickname: str = ""
+    channel: str = "normal"   # 网页注册=normal; wechat/douyin 由小程序端登录时创建
+
+
+class LoginBody(BaseModel):
+    username: str
+    password: str
+
+
+def _ensure_user_tables(db):
+    db.execute("""CREATE TABLE IF NOT EXISTS user(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE, password_hash TEXT, salt TEXT,
+        nickname TEXT, channel TEXT DEFAULT 'normal',
+        created_at TEXT, last_login TEXT)""")
+    db.execute("""CREATE TABLE IF NOT EXISTS user_session(
+        token TEXT PRIMARY KEY, user_id INTEGER,
+        created_at TEXT, expires_at TEXT)""")
+
+
+def _pw_hash(password: str, salt_hex: str) -> str:
+    return hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), bytes.fromhex(salt_hex), 120_000).hex()
+
+
+def _user_public(row) -> dict:
+    return {"id": row["id"], "username": row["username"], "nickname": row["nickname"], "channel": row["channel"]}
+
+
+def _new_session(db, user_id: int) -> str:
+    token = secrets.token_hex(32)
+    now = dt.datetime.now()
+    db.execute("INSERT INTO user_session(token,user_id,created_at,expires_at) VALUES(?,?,?,?)",
+               (token, user_id, now.strftime("%Y-%m-%d %H:%M:%S"),
+                (now + dt.timedelta(days=SESSION_DAYS)).strftime("%Y-%m-%d %H:%M:%S")))
+    return token
+
+
+def _session_user(db, token: str):
+    """token → user 行；无效/过期返回 None。"""
+    if not token:
+        return None
+    row = db.execute("""SELECT u.* FROM user_session s JOIN user u ON u.id = s.user_id
+                        WHERE s.token = ? AND s.expires_at > ?""",
+                     (token, dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))).fetchone()
+    return row
+
+
+@app.post("/api/auth/register")
+def auth_register(body: RegisterBody):
+    username = body.username.strip()
+    nickname = body.nickname.strip() or username
+    if not re.fullmatch(r"[A-Za-z0-9_一-龥]{2,20}", username):
+        raise HTTPException(400, "用户名 2-20 位，仅限中英文、数字、下划线")
+    if len(body.password) < 6:
+        raise HTTPException(400, "密码至少 6 位")
+    if body.channel not in USER_CHANNELS:
+        raise HTTPException(400, "渠道无效")
+    db = conn()
+    _ensure_user_tables(db)
+    if db.execute("SELECT 1 FROM user WHERE username=?", (username,)).fetchone():
+        db.close()
+        raise HTTPException(400, "用户名已存在")
+    salt = secrets.token_hex(16)
+    now = _server_now()
+    db.execute("INSERT INTO user(username,password_hash,salt,nickname,channel,created_at,last_login) VALUES(?,?,?,?,?,?,?)",
+               (username, _pw_hash(body.password, salt), salt, nickname, body.channel, now, now))
+    row = db.execute("SELECT * FROM user WHERE username=?", (username,)).fetchone()
+    token = _new_session(db, row["id"])
+    db.commit()
+    db.close()
+    return {"ok": True, "token": token, "user": _user_public(row)}
+
+
+@app.post("/api/auth/login")
+def auth_login(body: LoginBody):
+    username = body.username.strip()
+    db = conn()
+    _ensure_user_tables(db)
+    row = db.execute("SELECT * FROM user WHERE username=?", (username,)).fetchone()
+    if not row or _pw_hash(body.password, row["salt"]) != row["password_hash"]:
+        db.close()
+        raise HTTPException(400, "用户名或密码错误")
+    db.execute("UPDATE user SET last_login=? WHERE id=?", (_server_now(), row["id"]))
+    token = _new_session(db, row["id"])
+    db.commit()
+    db.close()
+    return {"ok": True, "token": token, "user": _user_public(row)}
+
+
+@app.get("/api/auth/me")
+def auth_me(x_auth_token: str = Header(default="")):
+    db = conn()
+    _ensure_user_tables(db)
+    row = _session_user(db, x_auth_token)
+    db.close()
+    if not row:
+        raise HTTPException(401, "未登录或登录已过期")
+    return {"ok": True, "user": _user_public(row)}
+
+
+@app.post("/api/auth/logout")
+def auth_logout(x_auth_token: str = Header(default="")):
+    db = conn()
+    _ensure_user_tables(db)
+    db.execute("DELETE FROM user_session WHERE token=?", (x_auth_token,))
+    db.commit()
+    db.close()
+    return {"ok": True}
