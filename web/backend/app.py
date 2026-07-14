@@ -16,6 +16,8 @@
 import os
 import re
 import json
+import time
+import hmac
 import sqlite3
 import hashlib
 import secrets
@@ -658,11 +660,18 @@ def _ensure_user_tables(db):
     db.execute("""CREATE TABLE IF NOT EXISTS user(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE, password_hash TEXT, salt TEXT,
-        nickname TEXT, channel TEXT DEFAULT 'normal',
+        nickname TEXT, channel TEXT DEFAULT 'normal', email TEXT,
         created_at TEXT, last_login TEXT)""")
+    if "email" not in [r[1] for r in db.execute("PRAGMA table_info(user)")]:
+        db.execute("ALTER TABLE user ADD COLUMN email TEXT")
     db.execute("""CREATE TABLE IF NOT EXISTS user_session(
         token TEXT PRIMARY KEY, user_id INTEGER,
         created_at TEXT, expires_at TEXT)""")
+    # 邮箱验证码（注册等用途）
+    db.execute("""CREATE TABLE IF NOT EXISTS email_code(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT, code TEXT, purpose TEXT,
+        created_at TEXT, expires_at TEXT, used INTEGER DEFAULT 0, attempts INTEGER DEFAULT 0)""")
 
 
 def _pw_hash(password: str, salt_hex: str) -> str:
@@ -821,3 +830,139 @@ def auth_mp_login(body: MpLoginBody):
     db.commit()
     db.close()
     return {"ok": True, "token": token, "user": _user_public(row)}
+
+
+# ---- 邮箱验证码注册（腾讯云 SES 发送；凭证走环境变量，未配置时返回清晰提示）----
+EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
+CODE_TTL_MIN = 10          # 验证码有效期(分钟)
+CODE_RESEND_SEC = 60       # 同一邮箱重发间隔(秒)
+CODE_DAILY_MAX = 10        # 同一邮箱每天上限
+CODE_TRY_MAX = 5           # 单个验证码最多试错次数
+
+
+class SendEmailCodeBody(BaseModel):
+    email: str
+
+
+class RegisterEmailBody(BaseModel):
+    email: str
+    code: str
+    password: str
+    nickname: str = ""
+
+
+def _tc3_post(service: str, action: str, version: str, region: str, payload: dict,
+              secret_id: str, secret_key: str) -> dict:
+    """腾讯云 API TC3-HMAC-SHA256 签名请求（纯标准库，不依赖 SDK）。"""
+    host = f"{service}.tencentcloudapi.com"
+    ts = int(time.time())
+    date = dt.datetime.utcfromtimestamp(ts).strftime("%Y-%m-%d")
+    body = json.dumps(payload)
+    canonical = "\n".join([
+        "POST", "/", "",
+        f"content-type:application/json; charset=utf-8\nhost:{host}\nx-tc-action:{action.lower()}\n",
+        "content-type;host;x-tc-action",
+        hashlib.sha256(body.encode("utf-8")).hexdigest()])
+    scope = f"{date}/{service}/tc3_request"
+    to_sign = "\n".join(["TC3-HMAC-SHA256", str(ts), scope,
+                         hashlib.sha256(canonical.encode("utf-8")).hexdigest()])
+    k_date = hmac.new(("TC3" + secret_key).encode("utf-8"), date.encode("utf-8"), hashlib.sha256).digest()
+    k_service = hmac.new(k_date, service.encode("utf-8"), hashlib.sha256).digest()
+    k_signing = hmac.new(k_service, b"tc3_request", hashlib.sha256).digest()
+    signature = hmac.new(k_signing, to_sign.encode("utf-8"), hashlib.sha256).hexdigest()
+    auth = (f"TC3-HMAC-SHA256 Credential={secret_id}/{scope}, "
+            f"SignedHeaders=content-type;host;x-tc-action, Signature={signature}")
+    req_ = urllib.request.Request("https://" + host, data=body.encode("utf-8"), headers={
+        "Authorization": auth, "Content-Type": "application/json; charset=utf-8",
+        "Host": host, "X-TC-Action": action, "X-TC-Version": version,
+        "X-TC-Timestamp": str(ts), "X-TC-Region": region})
+    with urllib.request.urlopen(req_, timeout=10) as r:
+        return json.loads(r.read().decode("utf-8"))
+
+
+def _ses_send_code(email: str, code: str):
+    secret_id = os.environ.get("TC_SECRET_ID", "")
+    secret_key = os.environ.get("TC_SECRET_KEY", "")
+    from_addr = os.environ.get("SES_FROM", "")          # 如: 狗脑发热 <noreply@mail.dogfever.cn>
+    template_id = os.environ.get("SES_TEMPLATE_ID", "")
+    region = os.environ.get("SES_REGION", "ap-guangzhou")
+    if not (secret_id and secret_key and from_addr and template_id):
+        raise HTTPException(503, "邮件服务未配置（服务器需设置 TC_SECRET_ID / TC_SECRET_KEY / SES_FROM / SES_TEMPLATE_ID）")
+    d = _tc3_post("ses", "SendEmail", "2020-10-02", region, {
+        "FromEmailAddress": from_addr,
+        "Destination": [email],
+        "Subject": "【狗脑发热】邮箱验证码",
+        "Template": {"TemplateID": int(template_id),
+                     "TemplateData": json.dumps({"code": code}, ensure_ascii=False)},
+    }, secret_id, secret_key)
+    err = (d.get("Response") or {}).get("Error")
+    if err:
+        raise HTTPException(502, f"邮件发送失败：{err.get('Message', err.get('Code'))}")
+
+
+@app.post("/api/auth/send_email_code")
+def auth_send_email_code(body: SendEmailCodeBody):
+    email = body.email.strip().lower()
+    if not EMAIL_RE.fullmatch(email):
+        raise HTTPException(400, "邮箱格式不正确")
+    db = conn()
+    _ensure_user_tables(db)
+    if db.execute("SELECT 1 FROM user WHERE email=? OR username=?", (email, email)).fetchone():
+        db.close()
+        raise HTTPException(400, "该邮箱已注册，请直接登录")
+    now = dt.datetime.now()
+    # 限流：60秒重发间隔 + 每天上限
+    last = db.execute("SELECT created_at FROM email_code WHERE email=? ORDER BY id DESC LIMIT 1", (email,)).fetchone()
+    if last and (now - dt.datetime.strptime(last["created_at"], "%Y-%m-%d %H:%M:%S")).total_seconds() < CODE_RESEND_SEC:
+        db.close()
+        raise HTTPException(429, "发送太频繁，请稍后再试")
+    today = db.execute("SELECT COUNT(*) FROM email_code WHERE email=? AND created_at LIKE ?",
+                       (email, now.strftime("%Y-%m-%d") + "%")).fetchone()[0]
+    if today >= CODE_DAILY_MAX:
+        db.close()
+        raise HTTPException(429, "今日发送次数已达上限")
+    code = str(secrets.randbelow(900000) + 100000)   # 6位数字
+    _ses_send_code(email, code)
+    db.execute("INSERT INTO email_code(email,code,purpose,created_at,expires_at) VALUES(?,?,?,?,?)",
+               (email, code, "register", now.strftime("%Y-%m-%d %H:%M:%S"),
+                (now + dt.timedelta(minutes=CODE_TTL_MIN)).strftime("%Y-%m-%d %H:%M:%S")))
+    db.commit()
+    db.close()
+    return {"ok": True, "ttl_min": CODE_TTL_MIN}
+
+
+@app.post("/api/auth/register_email")
+def auth_register_email(body: RegisterEmailBody):
+    email = body.email.strip().lower()
+    nickname = body.nickname.strip() or email.split("@")[0]
+    if not EMAIL_RE.fullmatch(email):
+        raise HTTPException(400, "邮箱格式不正确")
+    if len(body.password) < 6:
+        raise HTTPException(400, "密码至少 6 位")
+    db = conn()
+    _ensure_user_tables(db)
+    if db.execute("SELECT 1 FROM user WHERE email=? OR username=?", (email, email)).fetchone():
+        db.close()
+        raise HTTPException(400, "该邮箱已注册，请直接登录")
+    row = db.execute(
+        """SELECT * FROM email_code WHERE email=? AND purpose='register' AND used=0 AND expires_at > ?
+           ORDER BY id DESC LIMIT 1""",
+        (email, dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))).fetchone()
+    if not row or row["attempts"] >= CODE_TRY_MAX:
+        db.close()
+        raise HTTPException(400, "验证码无效或已过期，请重新获取")
+    if body.code.strip() != row["code"]:
+        db.execute("UPDATE email_code SET attempts = attempts + 1 WHERE id=?", (row["id"],))
+        db.commit()
+        db.close()
+        raise HTTPException(400, "验证码错误")
+    db.execute("UPDATE email_code SET used=1 WHERE id=?", (row["id"],))
+    salt = secrets.token_hex(16)
+    now = _server_now()
+    db.execute("INSERT INTO user(username,password_hash,salt,nickname,channel,email,created_at,last_login) VALUES(?,?,?,?,?,?,?,?)",
+               (email, _pw_hash(body.password, salt), salt, nickname, "normal", email, now, now))
+    u = db.execute("SELECT * FROM user WHERE username=?", (email,)).fetchone()
+    token = _new_session(db, u["id"])
+    db.commit()
+    db.close()
+    return {"ok": True, "token": token, "user": _user_public(u)}

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Routes, Route, NavLink, useLocation, useNavigate, Link } from 'react-router-dom'
-import { fetchOverview, fmt, serveridOf, serverCell, addCatchLog, fetchCatchLogs, startCatchTask, endCatchTask, fetchCatchTasks, fetchScenePets, authLogin, authRegister, authMe, authLogout, CHANNEL_LABEL, type AuthUser, type Overview, type Item, type Region, type Roles, type RoleCell, type Equip, type EquipGroup, type CatchLog, type CatchTask, type SceneGroup } from './api'
+import { fetchOverview, fmt, serveridOf, serverCell, addCatchLog, fetchCatchLogs, startCatchTask, endCatchTask, fetchCatchTasks, fetchScenePets, authLogin, authRegisterEmail, sendEmailCode, authMe, authLogout, CHANNEL_LABEL, type AuthUser, type Overview, type Item, type Region, type Roles, type RoleCell, type Equip, type EquipGroup, type CatchLog, type CatchTask, type SceneGroup } from './api'
 
 const CBG = 'https://xyq.cbg.163.com/'
 const SEL_KEY = '__mhxy_sel'   // localStorage: 记住用户选的区服/模式
@@ -200,28 +200,53 @@ function RoleMatrix({ roles }: { roles: Roles }) {
   )
 }
 
-// 登录 / 注册 页面（网页注册为「普通」渠道；微信/抖音渠道由小程序端创建）
+// 登录 / 注册 页面（注册=邮箱验证码；网页注册为「普通」渠道；微信/抖音渠道由小程序端创建）
 function AuthView({ mode, onAuth }: { mode: 'login' | 'register'; onAuth: (u: AuthUser) => void }) {
   const nav = useNavigate()
   const isLogin = mode === 'login'
-  const [username, setUsername] = useState('')
+  const [username, setUsername] = useState('')   // 登录：邮箱/用户名
+  const [email, setEmail] = useState('')
+  const [code, setCode] = useState('')
+  const [cd, setCd] = useState(0)                // 发送验证码倒计时(秒)
   const [nickname, setNickname] = useState('')
   const [password, setPassword] = useState('')
   const [password2, setPassword2] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  const [tip, setTip] = useState('')
+
+  useEffect(() => {
+    if (cd <= 0) return
+    const t = setTimeout(() => setCd(cd - 1), 1000)
+    return () => clearTimeout(t)
+  }, [cd])
 
   const labelStyle: CSSProperties = { fontSize: 13, fontWeight: 700, color: '#5a4a34', marginBottom: 6, display: 'block' }
 
+  const sendCode = async () => {
+    setErr(''); setTip('')
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setErr('请输入正确的邮箱'); return }
+    try {
+      await sendEmailCode(email.trim())
+      setCd(60)
+      setTip('验证码已发送，请查收邮箱（10 分钟内有效）')
+    } catch (e) { setErr((e as Error).message || '发送失败') }
+  }
+
   const submit = async () => {
-    setErr('')
-    if (!username.trim()) { setErr('请输入用户名'); return }
-    if (!password) { setErr('请输入密码'); return }
-    if (!isLogin && password.length < 6) { setErr('密码至少 6 位'); return }
-    if (!isLogin && password !== password2) { setErr('两次密码不一致'); return }
+    setErr(''); setTip('')
+    if (isLogin) {
+      if (!username.trim()) { setErr('请输入邮箱/用户名'); return }
+      if (!password) { setErr('请输入密码'); return }
+    } else {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setErr('请输入正确的邮箱'); return }
+      if (!code.trim()) { setErr('请输入验证码'); return }
+      if (password.length < 6) { setErr('密码至少 6 位'); return }
+      if (password !== password2) { setErr('两次密码不一致'); return }
+    }
     setBusy(true)
     try {
-      const u = isLogin ? await authLogin(username.trim(), password) : await authRegister(username.trim(), password, nickname.trim())
+      const u = isLogin ? await authLogin(username.trim(), password) : await authRegisterEmail(email.trim(), code.trim(), password, nickname.trim())
       onAuth(u)
       nav('/')
     } catch (e) { setErr((e as Error).message || '操作失败') }
@@ -233,17 +258,34 @@ function AuthView({ mode, onAuth }: { mode: 'login' | 'register'; onAuth: (u: Au
       <div style={{ background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 14, padding: 26 }}>
         <div className="serif" style={{ fontSize: 20, fontWeight: 900, color: '#2a221a', marginBottom: 4 }}>{isLogin ? '登录' : '注册'}</div>
         <div style={{ fontSize: 12, color: '#a89878', marginBottom: 18 }}>
-          {isLogin ? '登录后可使用记录等功能' : '网页注册为「普通」渠道；微信 / 抖音渠道账号由对应小程序自动创建'}
+          {isLogin ? '登录后可使用记录等功能' : '邮箱验证码注册（普通渠道）；微信 / 抖音渠道账号由对应小程序自动创建'}
         </div>
-        <div style={{ marginBottom: 14 }}>
-          <label style={labelStyle}>用户名</label>
-          <input value={username} onChange={e => setUsername(e.target.value)} placeholder="2-20 位，中英文、数字、下划线" className="ctl" />
-        </div>
-        {!isLogin && (
+        {isLogin ? (
           <div style={{ marginBottom: 14 }}>
-            <label style={labelStyle}>昵称 <span style={{ color: '#a89878', fontWeight: 400 }}>（可选，默认同用户名）</span></label>
-            <input value={nickname} onChange={e => setNickname(e.target.value)} placeholder="怎么称呼你" className="ctl" />
+            <label style={labelStyle}>邮箱 / 用户名</label>
+            <input value={username} onChange={e => setUsername(e.target.value)} placeholder="注册时的邮箱或用户名" className="ctl" />
           </div>
+        ) : (
+          <>
+            <div style={{ marginBottom: 14 }}>
+              <label style={labelStyle}>邮箱</label>
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" className="ctl" />
+            </div>
+            <div style={{ marginBottom: 14 }}>
+              <label style={labelStyle}>验证码</label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input value={code} onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" placeholder="6 位数字" className="ctl" />
+                <button className="btnH" onClick={sendCode} disabled={cd > 0}
+                  style={{ flexShrink: 0, padding: '0 16px', fontSize: 12.5, fontWeight: 700, color: cd > 0 ? '#b0a48c' : '#a8351f', background: '#fbeee8', border: '1px solid #ecccc2', borderRadius: 8, cursor: cd > 0 ? 'default' : 'pointer', fontFamily: 'inherit' }}>
+                  {cd > 0 ? `${cd}s 后重发` : '发送验证码'}
+                </button>
+              </div>
+            </div>
+            <div style={{ marginBottom: 14 }}>
+              <label style={labelStyle}>昵称 <span style={{ color: '#a89878', fontWeight: 400 }}>（可选）</span></label>
+              <input value={nickname} onChange={e => setNickname(e.target.value)} placeholder="怎么称呼你" className="ctl" />
+            </div>
+          </>
         )}
         <div style={{ marginBottom: 14 }}>
           <label style={labelStyle}>密码</label>
@@ -264,6 +306,7 @@ function AuthView({ mode, onAuth }: { mode: 'login' | 'register'; onAuth: (u: Au
           </button>
         </div>
         {err && <div style={{ marginTop: 12, fontSize: 13, fontWeight: 700, color: '#c1452e' }}>{err}</div>}
+        {tip && !err && <div style={{ marginTop: 12, fontSize: 13, fontWeight: 700, color: '#3a7a5a' }}>{tip}</div>}
         <div style={{ marginTop: 18, fontSize: 13, color: '#8a7a5c', textAlign: 'center' }}>
           {isLogin
             ? <>没有账号？<Link to="/register" style={{ color: '#c1452e', fontWeight: 700 }}>去注册</Link></>

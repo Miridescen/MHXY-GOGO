@@ -126,6 +126,14 @@ export async function authLogin(username: string, password: string): Promise<Aut
   setToken(d.token)
   return d.user
 }
+export async function sendEmailCode(email: string): Promise<void> {
+  await jsonOrThrow(await fetch('/api/auth/send_email_code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) }))
+}
+export async function authRegisterEmail(email: string, code: string, password: string, nickname: string): Promise<AuthUser> {
+  const d = await jsonOrThrow(await fetch('/api/auth/register_email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, code, password, nickname }) }))
+  setToken(d.token)
+  return d.user
+}
 export async function authMe(): Promise<AuthUser | null> {
   const t = getToken()
   if (!t) return null
