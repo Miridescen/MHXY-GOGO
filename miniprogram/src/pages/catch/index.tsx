@@ -2,8 +2,8 @@ import { View, Text, Input, Picker } from '@tarojs/components'
 import Taro from '@tarojs/taro'
 import { useEffect, useState } from 'react'
 import {
-  fetchScenePets, fetchCatchTasks, startCatchTask, endCatchTask, fetchCatchLogs, addCatchLog,
-  type SceneGroup, type CatchTask, type CatchLog
+  fetchScenePets, fetchCatchTasks, startCatchTask, endCatchTask, fetchCatchLogs, addCatchLog, ensureLogin,
+  type SceneGroup, type CatchTask, type CatchLog, type AuthUser
 } from '../../utils/api'
 import './index.scss'
 
@@ -36,6 +36,8 @@ export default function CatchPage() {
   const [busy, setBusy] = useState(false)
   const [tasks, setTasks] = useState<CatchTask[]>([])
   const [logs, setLogs] = useState<CatchLog[]>([])
+  const [user, setUser] = useState<AuthUser | null>(null)
+  const [authReady, setAuthReady] = useState(false)
 
   // 进行中的任务 = 最近一条未结束的（服务端为准，刷新/换设备不丢）
   const active = tasks.find(t => !t.end_time) || null
@@ -43,7 +45,10 @@ export default function CatchPage() {
   const curPets = curScene ? curScene.pets : []
 
   const loadTasks = () => fetchCatchTasks().then(setTasks).catch(() => { /* ignore */ })
-  useEffect(() => { loadTasks() }, [])
+  // 静默登录（wx.login/tt.login 自动创建微信/抖音渠道账号）→ 再拉取本人任务
+  useEffect(() => {
+    ensureLogin().then(u => { setUser(u); if (u) loadTasks() }).finally(() => setAuthReady(true))
+  }, [])
   useEffect(() => { fetchScenePets().then(setScenes).catch(() => { /* ignore */ }) }, [])
   useEffect(() => {
     if (active) fetchCatchLogs(active.id).then(setLogs).catch(() => { /* ignore */ })
@@ -96,6 +101,22 @@ export default function CatchPage() {
   const timeHM = curTime.slice(11, 16)
   const onTimePick = (e: any) => setCurTime(`${curTime.slice(0, 10)}T${e.detail.value}`)
 
+  const retryLogin = () => {
+    setAuthReady(false)
+    ensureLogin().then(u => { setUser(u); if (u) loadTasks() }).finally(() => setAuthReady(true))
+  }
+
+  if (!authReady) return <View className='page'><View className='cardBox loginTip'>登录中…</View></View>
+  if (!user) return (
+    <View className='page'>
+      <View className='cardBox loginTip'>
+        <View className='loginTitle'>自动登录失败</View>
+        <View className='loginDesc'>场景记录需登录后使用（每位用户的记录相互独立）</View>
+        <View className='submitBtn' onClick={retryLogin}>重试登录</View>
+      </View>
+    </View>
+  )
+
   return (
     <View className='page'>
       {/* 大任务控制 */}
@@ -112,6 +133,7 @@ export default function CatchPage() {
         ) : (
           <Text className='statusOff'>当前无进行中的任务，点「开始」开启一次</Text>
         )}
+        <View className='userLine'>{user.nickname} · {user.channel === 'wechat' ? '微信' : user.channel === 'douyin' ? '抖音' : '普通'}渠道</View>
       </View>
 
       {/* 录入表单 */}

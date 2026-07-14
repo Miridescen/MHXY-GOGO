@@ -485,7 +485,8 @@ export default function App() {
   const [openServer, setOpenServer] = useState(false)
   const selRef = useRef<HTMLDivElement>(null)
   const [user, setUser] = useState<AuthUser | null>(null)
-  useEffect(() => { authMe().then(setUser).catch(() => { /* ignore */ }) }, [])
+  const [authReady, setAuthReady] = useState(false)
+  useEffect(() => { authMe().then(setUser).catch(() => { /* ignore */ }).finally(() => setAuthReady(true)) }, [])
   const doLogout = async () => { await authLogout(); setUser(null) }
   const topbarRef = useRef<HTMLDivElement>(null)
   const [topbarH, setTopbarH] = useState(73)   // header 固定后占位高度（窄屏换行时自适应）
@@ -736,7 +737,17 @@ export default function App() {
           狗脑发热 · 梦幻西游藏宝阁全服比价 · 数据更新于 {data.generated_at}<br />价格每日更新，仅供参考，点击「去购买」以藏宝阁实时为准
         </div>
           </>} />
-          <Route path="/catch" element={<CatchLogView />} />
+          <Route path="/catch" element={
+            !authReady ? <div style={{ textAlign: 'center', padding: '60px 0', color: '#b0a48c' }}>加载中…</div>
+            : user ? <CatchLogView />
+            : (
+              <div style={{ maxWidth: 400, margin: '40px auto 0', background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 14, padding: 30, textAlign: 'center' }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#2a221a', marginBottom: 10 }}>场景记录需要登录后使用</div>
+                <div style={{ fontSize: 13, color: '#a89878', marginBottom: 20 }}>每位用户的任务和记录相互独立</div>
+                <Link to="/login" style={{ display: 'inline-block', textDecoration: 'none', fontSize: 14, fontWeight: 800, color: '#fff', background: '#c1452e', borderRadius: 8, padding: '11px 30px' }}>去登录 / 注册</Link>
+              </div>
+            )
+          } />
           <Route path="/login" element={<AuthView mode="login" onAuth={setUser} />} />
           <Route path="/register" element={<AuthView mode="register" onAuth={setUser} />} />
         </Routes>

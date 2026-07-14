@@ -71,13 +71,19 @@ export interface CatchLog { id: number; task_id: number; category: string; scene
 export interface ScenePet { id: number; name: string; carry_lv: number }
 export interface SceneGroup { id: number; name: string; pets: ScenePet[] }
 
+// ---- 登录态（token 存本地；请求统一带 X-Auth-Token）----
+export interface AuthUser { id: number; username: string; nickname: string; channel: string }
+const TOKEN_KEY = 'mhxy_token'
+export const getToken = (): string => Taro.getStorageSync(TOKEN_KEY) || ''
+export const setToken = (t: string) => { if (t) Taro.setStorageSync(TOKEN_KEY, t); else Taro.removeStorageSync(TOKEN_KEY) }
+
 function req<T>(path: string, method: 'GET' | 'POST' = 'GET', data?: any): Promise<T> {
   return new Promise((resolve, reject) => {
     Taro.request({
       url: API_BASE + path,
       method,
       data,
-      header: { 'Content-Type': 'application/json' },
+      header: { 'Content-Type': 'application/json', 'X-Auth-Token': getToken() },
       success: (res) => {
         if (res.statusCode >= 200 && res.statusCode < 300) resolve(res.data as T)
         else reject(new Error((res.data as any)?.detail || 'HTTP ' + res.statusCode))
@@ -85,6 +91,25 @@ function req<T>(path: string, method: 'GET' | 'POST' = 'GET', data?: any): Promi
       fail: (e) => reject(new Error(e.errMsg || '网络错误'))
     })
   })
+}
+
+// 小程序静默登录：wx.login/tt.login 的 code 给后端换 openid，自动创建 微信/抖音 渠道账号
+export async function mpLogin(): Promise<AuthUser> {
+  const res = await Taro.login()
+  if (!res.code) throw new Error('获取登录 code 失败')
+  const platform = process.env.TARO_ENV === 'tt' ? 'douyin' : 'wechat'
+  const d = await req<{ ok: boolean; token: string; user: AuthUser }>('/api/auth/mp_login', 'POST', { code: res.code, platform })
+  setToken(d.token)
+  return d.user
+}
+
+// 确保已登录：有 token 先验有效性，无效/没有则静默登录；失败返回 null
+export async function ensureLogin(): Promise<AuthUser | null> {
+  if (getToken()) {
+    try { return (await req<{ ok: boolean; user: AuthUser }>('/api/auth/me')).user }
+    catch { setToken('') }
+  }
+  try { return await mpLogin() } catch { return null }
 }
 
 export const fetchScenePets = () => req<{ scenes: SceneGroup[] }>('/api/scene_pets?_=' + Date.now()).then(d => d.scenes)

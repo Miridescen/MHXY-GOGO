@@ -19,6 +19,8 @@ import json
 import sqlite3
 import hashlib
 import secrets
+import urllib.request
+import urllib.parse
 import datetime as dt
 
 from fastapi import FastAPI, HTTPException, Header
@@ -428,10 +430,12 @@ def _server_now():
 
 
 def _ensure_catch_tables(db):
-    # 大任务：一次抓宝宝任务（开始→结束）
+    # 大任务：一次抓宝宝任务（开始→结束），user_id 归属登录用户
     db.execute("""CREATE TABLE IF NOT EXISTS catch_task(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER,
         start_time TEXT, end_time TEXT, created_at TEXT)""")
+    if "user_id" not in [r[1] for r in db.execute("PRAGMA table_info(catch_task)")]:
+        db.execute("ALTER TABLE catch_task ADD COLUMN user_id INTEGER")
     # 小任务：任务期间每抓到一只（catch_time 而非 current_time，后者是 SQLite 保留字）
     # category=宝宝/环装/告密; scene=宝宝所在场景; name=宝宝名或环装级别; sub_type=环装的武器/装备
     # coord_x/coord_y=坐标（可选，整数）
@@ -454,12 +458,24 @@ def _ensure_catch_tables(db):
                     db.execute("UPDATE catch_log SET coord_x=?, coord_y=? WHERE id=?", (int(m.group(1)), int(m.group(2)), rid))
 
 
+def _require_user(db, token: str):
+    """校验登录态；未登录抛 401。"""
+    _ensure_user_tables(db)
+    row = _session_user(db, token)
+    if not row:
+        db.close()
+        raise HTTPException(401, "请先登录")
+    return row
+
+
 @app.post("/api/catch_task/start")
-def catch_task_start():
+def catch_task_start(x_auth_token: str = Header(default="")):
     db = conn()
     _ensure_catch_tables(db)
+    user = _require_user(db, x_auth_token)
     now = _server_now()
-    cur = db.execute("INSERT INTO catch_task(start_time,end_time,created_at) VALUES(?,NULL,?)", (now, now))
+    cur = db.execute("INSERT INTO catch_task(user_id,start_time,end_time,created_at) VALUES(?,?,NULL,?)",
+                     (user["id"], now, now))
     db.commit()
     tid = cur.lastrowid
     db.close()
@@ -467,18 +483,20 @@ def catch_task_start():
 
 
 @app.post("/api/catch_task/{task_id}/end")
-def catch_task_end(task_id: int):
+def catch_task_end(task_id: int, x_auth_token: str = Header(default="")):
     db = conn()
     _ensure_catch_tables(db)
+    user = _require_user(db, x_auth_token)
     now = _server_now()
-    db.execute("UPDATE catch_task SET end_time=? WHERE id=? AND end_time IS NULL", (now, task_id))
+    db.execute("UPDATE catch_task SET end_time=? WHERE id=? AND user_id=? AND end_time IS NULL",
+               (now, task_id, user["id"]))
     db.commit()
     db.close()
     return {"ok": True, "id": task_id, "end_time": now}
 
 
 @app.post("/api/catch_log")
-def catch_log_add(body: CatchLogBody):
+def catch_log_add(body: CatchLogBody, x_auth_token: str = Header(default="")):
     category = body.category.strip()
     name = body.name.strip()
     sub_type = body.sub_type.strip()
@@ -501,7 +519,9 @@ def catch_log_add(body: CatchLogBody):
         raise HTTPException(400, "坐标只能是数字")
     db = conn()
     _ensure_catch_tables(db)
-    t = db.execute("SELECT id, end_time FROM catch_task WHERE id=?", (body.task_id,)).fetchone()
+    user = _require_user(db, x_auth_token)
+    t = db.execute("SELECT id, end_time FROM catch_task WHERE id=? AND user_id=?",
+                   (body.task_id, user["id"])).fetchone()
     if not t:
         db.close()
         raise HTTPException(400, "任务不存在，请先点「开始」")
@@ -521,33 +541,35 @@ def catch_log_add(body: CatchLogBody):
 
 
 @app.get("/api/catch_tasks")
-def catch_tasks(limit: int = 50):
-    """任务列表 + 每个任务抓到数量（供展示 / 后续统计）。end_time 为空即进行中。"""
+def catch_tasks(limit: int = 50, x_auth_token: str = Header(default="")):
+    """当前用户的任务列表 + 每个任务抓到数量。end_time 为空即进行中。"""
     db = conn()
     _ensure_catch_tables(db)
+    user = _require_user(db, x_auth_token)
     rows = [dict(r) for r in db.execute(
         """SELECT t.id, t.start_time, t.end_time, t.created_at, COUNT(l.id) AS catches
            FROM catch_task t LEFT JOIN catch_log l ON l.task_id = t.id
+           WHERE t.user_id = ?
            GROUP BY t.id ORDER BY t.id DESC LIMIT ?""",
-        (max(1, min(300, limit)),))]
+        (user["id"], max(1, min(300, limit)),))]
     db.close()
     return {"rows": rows}
 
 
 @app.get("/api/catch_logs")
-def catch_logs(task_id: int = 0, limit: int = 100):
+def catch_logs(task_id: int = 0, limit: int = 100, x_auth_token: str = Header(default="")):
     db = conn()
     _ensure_catch_tables(db)
+    user = _require_user(db, x_auth_token)
+    base = ("SELECT l.id,l.task_id,l.category,l.scene,l.name,l.sub_type,l.coord_x,l.coord_y,"
+            "l.catch_time AS current_time,l.created_at "
+            "FROM catch_log l JOIN catch_task t ON t.id = l.task_id WHERE t.user_id = ?")
     if task_id:
-        rows = db.execute(
-            "SELECT id,task_id,category,scene,name,sub_type,coord_x,coord_y,catch_time AS current_time,created_at "
-            "FROM catch_log WHERE task_id=? ORDER BY id DESC LIMIT ?",
-            (task_id, max(1, min(500, limit))))
+        rows = db.execute(base + " AND l.task_id=? ORDER BY l.id DESC LIMIT ?",
+                          (user["id"], task_id, max(1, min(500, limit))))
     else:
-        rows = db.execute(
-            "SELECT id,task_id,category,scene,name,sub_type,coord_x,coord_y,catch_time AS current_time,created_at "
-            "FROM catch_log ORDER BY id DESC LIMIT ?",
-            (max(1, min(500, limit)),))
+        rows = db.execute(base + " ORDER BY l.id DESC LIMIT ?",
+                          (user["id"], max(1, min(500, limit))))
     out = [dict(r) for r in rows]
     db.close()
     return {"rows": out}
@@ -731,3 +753,71 @@ def auth_logout(x_auth_token: str = Header(default="")):
     db.commit()
     db.close()
     return {"ok": True}
+
+
+# ---- 小程序静默登录：wx.login / tt.login 的 code 换 openid，自动创建 微信/抖音 渠道账号 ----
+class MpLoginBody(BaseModel):
+    code: str
+    platform: str = "wechat"   # wechat | douyin
+
+
+def _http_json(url: str, payload=None) -> dict:
+    if payload is not None:
+        req_ = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"),
+                                      headers={"Content-Type": "application/json"})
+    else:
+        req_ = urllib.request.Request(url)
+    with urllib.request.urlopen(req_, timeout=10) as r:
+        return json.loads(r.read().decode("utf-8"))
+
+
+@app.post("/api/auth/mp_login")
+def auth_mp_login(body: MpLoginBody):
+    platform = body.platform.strip()
+    if platform not in ("wechat", "douyin"):
+        raise HTTPException(400, "platform 应为 wechat 或 douyin")
+    if not body.code.strip():
+        raise HTTPException(400, "缺少 code")
+
+    if platform == "wechat":
+        appid, secret = os.environ.get("WX_APPID", ""), os.environ.get("WX_SECRET", "")
+        if not appid or not secret:
+            raise HTTPException(503, "微信登录未配置（服务器需设置 WX_APPID / WX_SECRET）")
+        q = urllib.parse.urlencode({"appid": appid, "secret": secret,
+                                    "js_code": body.code.strip(), "grant_type": "authorization_code"})
+        d = _http_json("https://api.weixin.qq.com/sns/jscode2session?" + q)
+        if d.get("errcode"):
+            raise HTTPException(400, f"微信登录失败：{d.get('errmsg', d['errcode'])}")
+        openid = d.get("openid", "")
+        prefix, nick_prefix, channel = "wx_", "微信用户", "wechat"
+    else:
+        appid, secret = os.environ.get("TT_APPID", ""), os.environ.get("TT_SECRET", "")
+        if not appid or not secret:
+            raise HTTPException(503, "抖音登录未配置（服务器需设置 TT_APPID / TT_SECRET）")
+        d = _http_json("https://developer.toutiao.com/api/apps/v2/jscode2session",
+                       {"appid": appid, "secret": secret, "code": body.code.strip()})
+        if d.get("err_no"):
+            raise HTTPException(400, f"抖音登录失败：{d.get('err_tips', d['err_no'])}")
+        openid = (d.get("data") or {}).get("openid", "")
+        prefix, nick_prefix, channel = "tt_", "抖音用户", "douyin"
+
+    if not openid:
+        raise HTTPException(400, "未取得 openid")
+
+    username = prefix + openid
+    db = conn()
+    _ensure_user_tables(db)
+    row = db.execute("SELECT * FROM user WHERE username=?", (username,)).fetchone()
+    now = _server_now()
+    if not row:
+        salt = secrets.token_hex(16)
+        db.execute("INSERT INTO user(username,password_hash,salt,nickname,channel,created_at,last_login) VALUES(?,?,?,?,?,?,?)",
+                   (username, _pw_hash(secrets.token_hex(16), salt), salt,
+                    nick_prefix + openid[-4:], channel, now, now))
+        row = db.execute("SELECT * FROM user WHERE username=?", (username,)).fetchone()
+    else:
+        db.execute("UPDATE user SET last_login=? WHERE id=?", (now, row["id"]))
+    token = _new_session(db, row["id"])
+    db.commit()
+    db.close()
+    return {"ok": True, "token": token, "user": _user_public(row)}

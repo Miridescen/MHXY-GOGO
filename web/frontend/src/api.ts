@@ -85,23 +85,25 @@ async function jsonOrThrow(r: Response) {
   return r.json()
 }
 
+const authHeaders = () => ({ 'X-Auth-Token': getToken() })
+
 export async function startCatchTask(): Promise<{ ok: boolean; id: number; start_time: string }> {
-  return jsonOrThrow(await fetch('/api/catch_task/start', { method: 'POST' }))
+  return jsonOrThrow(await fetch('/api/catch_task/start', { method: 'POST', headers: authHeaders() }))
 }
 export async function endCatchTask(id: number): Promise<{ ok: boolean; id: number; end_time: string }> {
-  return jsonOrThrow(await fetch('/api/catch_task/' + id + '/end', { method: 'POST' }))
+  return jsonOrThrow(await fetch('/api/catch_task/' + id + '/end', { method: 'POST', headers: authHeaders() }))
 }
 export async function fetchCatchTasks(): Promise<CatchTask[]> {
-  const r = await fetch('/api/catch_tasks?_=' + Date.now())
+  const r = await fetch('/api/catch_tasks?_=' + Date.now(), { headers: authHeaders() })
   if (!r.ok) throw new Error('HTTP ' + r.status)
   return (await r.json()).rows
 }
 export async function addCatchLog(body: { task_id: number; category: string; scene: string; name: string; sub_type: string; coord_x: string; coord_y: string; current_time: string }): Promise<{ ok: boolean; id: number }> {
-  return jsonOrThrow(await fetch('/api/catch_log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }))
+  return jsonOrThrow(await fetch('/api/catch_log', { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(body) }))
 }
 export async function fetchCatchLogs(taskId?: number): Promise<CatchLog[]> {
   const q = taskId ? ('?task_id=' + taskId) : ('?_=' + Date.now())
-  const r = await fetch('/api/catch_logs' + q)
+  const r = await fetch('/api/catch_logs' + q, { headers: authHeaders() })
   if (!r.ok) throw new Error('HTTP ' + r.status)
   return (await r.json()).rows
 }

@@ -42,6 +42,12 @@
 .submitBtn.off { background: #d9cdbb; }
 .submitBtn:active { opacity: .85; }
 
+/* 登录态 */
+.loginTip { text-align: center; padding: 60px 40px; font-size: 26px; color: #a89878; }
+.loginTitle { font-size: 30px; font-weight: 800; color: #2a221a; margin-bottom: 14px; }
+.loginDesc { font-size: 23px; color: #a89878; margin-bottom: 34px; }
+.userLine { margin-top: 16px; font-size: 21px; color: #a89878; }
+
 /* 本次任务记录 */
 .listTitle { font-size: 25px; font-weight: 700; color: #5a4a34; margin-bottom: 16px; }
 .logRow { display: flex; align-items: flex-start; padding: 14px 0; border-top: 1px solid #f3ead9; font-size: 22px; color: #3a3226; }
