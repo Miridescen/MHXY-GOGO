@@ -1,0 +1,55 @@
+.page { padding: 24px 24px 60px; }
+
+.cardBox { background: #fdfaf3; border: 1px solid #ece2cf; border-radius: 22px; padding: 28px; margin-bottom: 26px; }
+.dim { opacity: .6; }
+
+/* 开始/结束 */
+.btnRow { display: flex; gap: 20px; margin-bottom: 20px; }
+.bigBtn { flex: 1; text-align: center; padding: 22px 0; border-radius: 14px; font-size: 30px; font-weight: 800; color: #fff; }
+.bigBtn.green { background: #3a7a5a; }
+.bigBtn.red { background: #c1452e; }
+.bigBtn.off { background: #d9cdbb; }
+.bigBtn:active { opacity: .85; }
+
+.statusRow { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; }
+.statusOn { font-size: 23px; color: #3a7a5a; font-weight: 700; }
+.statusOff { font-size: 23px; color: #a89878; font-weight: 700; }
+.timer { font-size: 36px; font-weight: 900; color: #c1452e; font-variant-numeric: tabular-nums; }
+
+/* 表单 */
+.fLabel { font-size: 24px; font-weight: 700; color: #5a4a34; margin: 22px 0 12px; }
+.cardBox .fLabel:first-child { margin-top: 0; }
+.fNote { font-size: 21px; color: #a89878; font-weight: 400; }
+
+.catRow { display: flex; gap: 14px; }
+.catBtn { flex: 1; text-align: center; padding: 16px 0; font-size: 25px; font-weight: 700; border-radius: 14px; border: 1px solid #e0d4bd; background: #fff; color: #6a5a44; }
+.catOn { background: #c1452e; border-color: #c1452e; color: #fff; }
+
+.twoCol { display: flex; gap: 20px; }
+.col { flex: 1; }
+
+.pickerBox { background: #fff; border: 1px solid #e2d6bf; border-radius: 14px; padding: 18px 20px; font-size: 25px; color: #2a221a; }
+.caret { color: #c1452e; float: right; }
+
+.timeRow { display: flex; gap: 14px; align-items: stretch; }
+.timeRow > picker { flex: 1; }
+.nowBtn { flex-shrink: 0; display: flex; align-items: center; padding: 0 24px; font-size: 23px; font-weight: 700; color: #a8351f; background: #fbeee8; border: 1px solid #ecccc2; border-radius: 14px; }
+.nowBtn:active { opacity: .8; }
+
+.numInput { flex: 1; background: #fff; border: 1px solid #e2d6bf; border-radius: 14px; padding: 18px 20px; font-size: 25px; color: #2a221a; height: auto; }
+
+.submitBtn { margin-top: 30px; text-align: center; padding: 22px 0; border-radius: 14px; font-size: 28px; font-weight: 800; color: #fff; background: #c1452e; }
+.submitBtn.off { background: #d9cdbb; }
+.submitBtn:active { opacity: .85; }
+
+/* 本次任务记录 */
+.listTitle { font-size: 25px; font-weight: 700; color: #5a4a34; margin-bottom: 16px; }
+.logRow { display: flex; align-items: flex-start; padding: 14px 0; border-top: 1px solid #f3ead9; font-size: 22px; color: #3a3226; }
+.logHead { color: #a89878; font-weight: 700; font-size: 21px; border-top: none; }
+.cCat { width: 90px; flex-shrink: 0; }
+.cName { flex: 1; }
+.cCoord { width: 130px; flex-shrink: 0; }
+.cTime { width: 160px; flex-shrink: 0; }
+.sub { color: #a89878; }
+.logName { font-weight: 700; }
+.logScene { font-size: 18px; color: #a89878; margin-top: 2px; }

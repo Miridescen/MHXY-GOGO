@@ -65,6 +65,36 @@ export function fetchOverview(): Promise<Overview> {
   })
 }
 
+// ---- 场景记录（与网站一致：大任务 + 每次抓到；场景/召唤兽联动）----
+export interface CatchTask { id: number; start_time: string; end_time: string | null; created_at: string; catches: number }
+export interface CatchLog { id: number; task_id: number; category: string; scene: string; name: string; sub_type: string; coord_x: number | null; coord_y: number | null; current_time: string; created_at: string }
+export interface ScenePet { id: number; name: string; carry_lv: number }
+export interface SceneGroup { id: number; name: string; pets: ScenePet[] }
+
+function req<T>(path: string, method: 'GET' | 'POST' = 'GET', data?: any): Promise<T> {
+  return new Promise((resolve, reject) => {
+    Taro.request({
+      url: API_BASE + path,
+      method,
+      data,
+      header: { 'Content-Type': 'application/json' },
+      success: (res) => {
+        if (res.statusCode >= 200 && res.statusCode < 300) resolve(res.data as T)
+        else reject(new Error((res.data as any)?.detail || 'HTTP ' + res.statusCode))
+      },
+      fail: (e) => reject(new Error(e.errMsg || '网络错误'))
+    })
+  })
+}
+
+export const fetchScenePets = () => req<{ scenes: SceneGroup[] }>('/api/scene_pets?_=' + Date.now()).then(d => d.scenes)
+export const fetchCatchTasks = () => req<{ rows: CatchTask[] }>('/api/catch_tasks?_=' + Date.now()).then(d => d.rows)
+export const startCatchTask = () => req<{ ok: boolean; id: number; start_time: string }>('/api/catch_task/start', 'POST')
+export const endCatchTask = (id: number) => req<{ ok: boolean; id: number; end_time: string }>(`/api/catch_task/${id}/end`, 'POST')
+export const fetchCatchLogs = (taskId: number) => req<{ rows: CatchLog[] }>(`/api/catch_logs?task_id=${taskId}&_=${Date.now()}`).then(d => d.rows)
+export const addCatchLog = (body: { task_id: number; category: string; scene: string; name: string; sub_type: string; coord_x: string; coord_y: string; current_time: string }) =>
+  req<{ ok: boolean; id: number }>('/api/catch_log', 'POST', body)
+
 // ---- 纯函数 ----
 export function fmt(n: number | null | undefined): string {
   if (n == null || isNaN(Number(n))) return ''

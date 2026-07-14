@@ -10,6 +10,7 @@ import { showRewardAd } from '../../utils/ad'
 import './index.scss'
 
 const CATS = ['全部', '装备', '宝宝', '灵饰', '内丹', '锦衣', '材料']
+const catLabel = (c: string) => c === '宝宝' ? '召唤兽' : c   // 文案显示「召唤兽」，筛选值仍与后端品类一致
 const SEL_KEY = 'mhxy_sel'
 
 // 角色携带物（锦衣/坐骑）通用：选物品 → 看 性别×等级 矩阵
@@ -266,7 +267,7 @@ export default function Index() {
       {/* 分类 */}
       <ScrollView scrollX className='chips'>
         {CATS.map(c => (
-          <Text key={c} className={'chip ' + (c === cat ? 'chipOn' : '')} onClick={() => setCat(c)}>{c}</Text>
+          <Text key={c} className={'chip ' + (c === cat ? 'chipOn' : '')} onClick={() => setCat(c)}>{catLabel(c)}</Text>
         ))}
       </ScrollView>
 
@@ -293,7 +294,7 @@ export default function Index() {
                     {isGlobal && <Text className='badge'>全服最低</Text>}
                     {!isGlobal && here && !cheaper && <Text className='badge'>全服最低</Text>}
                   </View>
-                  <Text className='cardSub'>{isGlobal ? gLoc : it.cat}</Text>
+                  <Text className='cardSub'>{isGlobal ? gLoc : catLabel(it.cat)}</Text>
                 </View>
                 <View className='cardPrice'>
                   <Text className='bigPrice'>{mainPrice != null ? fmt(mainPrice) : '—'}</Text>
