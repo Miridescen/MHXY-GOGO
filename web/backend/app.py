@@ -888,6 +888,8 @@ def _ses_send_code(email: str, code: str):
     region = os.environ.get("SES_REGION", "ap-guangzhou")
     if not (secret_id and secret_key and from_addr and template_id):
         raise HTTPException(503, "邮件服务未配置（服务器需设置 TC_SECRET_ID / TC_SECRET_KEY / SES_FROM / SES_TEMPLATE_ID）")
+    if not template_id.isdigit():
+        raise HTTPException(503, f"SES_TEMPLATE_ID 配置有误（应为纯数字，当前值: {template_id}）")
     d = _tc3_post("ses", "SendEmail", "2020-10-02", region, {
         "FromEmailAddress": from_addr,
         "Destination": [email],
