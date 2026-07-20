@@ -108,6 +108,14 @@ export async function fetchCatchLogs(taskId?: number): Promise<CatchLog[]> {
   return (await r.json()).rows
 }
 
+// 收益查询：日期范围内每种东西的数量
+export interface CatchStat { category: string; name: string; sub_type: string; count: number }
+export async function fetchCatchStats(start: string, end: string): Promise<{ start: string; end: string; rows: CatchStat[]; total: number }> {
+  const r = await fetch(`/api/catch_stats?start=${start}&end=${end}&_=${Date.now()}`, { headers: authHeaders() })
+  if (!r.ok) throw new Error('HTTP ' + r.status)
+  return r.json()
+}
+
 // ---- 用户系统：注册/登录（channel: normal 普通 | wechat 微信 | douyin 抖音）----
 export interface AuthUser { id: number; username: string; nickname: string; channel: string }
 export const CHANNEL_LABEL: Record<string, string> = { normal: '普通', wechat: '微信', douyin: '抖音' }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Routes, Route, NavLink, useLocation, useNavigate, Link } from 'react-router-dom'
-import { fetchOverview, fmt, serveridOf, serverCell, addCatchLog, fetchCatchLogs, startCatchTask, endCatchTask, fetchCatchTasks, fetchScenePets, authLogin, authRegisterEmail, sendEmailCode, authMe, authLogout, CHANNEL_LABEL, type AuthUser, type Overview, type Item, type Region, type Roles, type RoleCell, type Equip, type EquipGroup, type CatchLog, type CatchTask, type SceneGroup } from './api'
+import { fetchOverview, fmt, serveridOf, serverCell, addCatchLog, fetchCatchLogs, startCatchTask, endCatchTask, fetchCatchTasks, fetchCatchStats, fetchScenePets, authLogin, authRegisterEmail, sendEmailCode, authMe, authLogout, CHANNEL_LABEL, type AuthUser, type Overview, type Item, type Region, type Roles, type RoleCell, type Equip, type EquipGroup, type CatchLog, type CatchTask, type CatchStat, type SceneGroup } from './api'
 
 const CBG = 'https://xyq.cbg.163.com/'
 const SEL_KEY = '__mhxy_sel'   // localStorage: 记住用户选的区服/模式
@@ -355,6 +355,25 @@ function CatchLogView() {
   const fmtDur = (s: number) =>
     `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
 
+  // 收益查询：日期范围(按日) → 每种东西分开计数
+  const dayStr = (offset = 0) => {
+    const d = new Date(); d.setDate(d.getDate() + offset)
+    const p = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+  }
+  const [statStart, setStatStart] = useState(dayStr(-6))
+  const [statEnd, setStatEnd] = useState(dayStr(0))
+  const [stats, setStats] = useState<CatchStat[]>([])
+  const [statTotal, setStatTotal] = useState(0)
+  const [statBusy, setStatBusy] = useState(false)
+  const loadStats = async (s = statStart, e = statEnd) => {
+    setStatBusy(true)
+    try { const d = await fetchCatchStats(s, e); setStats(d.rows); setStatTotal(d.total) } catch { /* ignore */ }
+    setStatBusy(false)
+  }
+  useEffect(() => { loadStats() }, [])
+  const quickRange = (days: number) => { const s = dayStr(-(days - 1)), e = dayStr(0); setStatStart(s); setStatEnd(e); loadStats(s, e) }
+
   const loadTasks = () => fetchCatchTasks().then(setTasks).catch(() => { /* ignore */ })
   useEffect(() => { loadTasks() }, [])
   useEffect(() => {
@@ -399,7 +418,7 @@ function CatchLogView() {
       await addCatchLog({ task_id: active.id, category, scene, name, sub_type, coord_x: coordX.trim(), coord_y: coordY.trim(), current_time: curTime })
       setMsg({ ok: true, text: '已录入 ✓' })
       setCoordX(''); setCoordY(''); setCurTime(nowLocal())
-      await Promise.all([fetchCatchLogs(active.id).then(setLogs), loadTasks()])
+      await Promise.all([fetchCatchLogs(active.id).then(setLogs), loadTasks(), loadStats()])
     } catch (e) { setMsg({ ok: false, text: '录入失败：' + ((e as Error).message || e) }) }
     setBusy(false)
   }
@@ -489,6 +508,43 @@ function CatchLogView() {
           {msg && !msg.ok && <span style={{ fontSize: 13, fontWeight: 700, color: '#c1452e' }}>{msg.text}</span>}
         </div>
       </div>
+      </div>
+
+      {/* 收益查询：日期范围内每种东西分开统计 */}
+      <div style={{ flexBasis: '100%', maxWidth: 760, order: 9 }}>
+        <div style={{ background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 14, padding: 20 }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: '#2a221a', marginBottom: 14 }}>收益查询</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
+            <input type="date" value={statStart} onChange={e => setStatStart(e.target.value)} className="ctl" style={{ width: 155 }} />
+            <span style={{ color: '#a89878' }}>至</span>
+            <input type="date" value={statEnd} onChange={e => setStatEnd(e.target.value)} className="ctl" style={{ width: 155 }} />
+            <button className="btnH" onClick={() => loadStats()} disabled={statBusy}
+              style={{ padding: '10px 22px', fontSize: 13.5, fontWeight: 800, color: '#fff', background: statBusy ? '#d9cdbb' : '#c1452e', border: 'none', borderRadius: 8, cursor: statBusy ? 'default' : 'pointer', fontFamily: 'inherit' }}>查询</button>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {([['今天', 1], ['近7天', 7], ['近30天', 30]] as const).map(([label, n]) => (
+                <button key={label} className="btnH" onClick={() => quickRange(n)}
+                  style={{ padding: '7px 12px', fontSize: 12, fontWeight: 700, color: '#6a5a44', background: '#f5ecdd', border: '1px solid #e6dac4', borderRadius: 7, cursor: 'pointer', fontFamily: 'inherit' }}>{label}</button>
+              ))}
+            </div>
+          </div>
+          {stats.length === 0 ? (
+            <div style={{ fontSize: 13, color: '#a89878' }}>该时间段内暂无收获记录</div>
+          ) : (
+            <>
+              <div style={{ fontSize: 12.5, color: '#8a7a5c', marginBottom: 10 }}>共 <span style={{ fontWeight: 900, color: '#c1452e' }}>{statTotal}</span> 件</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {stats.map((s, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff', border: '1px solid #e6dac4', borderRadius: 9, padding: '8px 13px' }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: '#fff', padding: '1px 6px', borderRadius: 7,
+                      background: s.category === '召唤兽' ? '#c1452e' : s.category === '环装' ? '#8a4a12' : '#8a7a5c' }}>{s.category}</span>
+                    <span style={{ fontSize: 13.5, fontWeight: 700, color: '#2a221a' }}>{catchLabel(s)}</span>
+                    <span className="serif" style={{ fontSize: 14, fontWeight: 900, color: '#c1452e' }}>×{s.count}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* 右列：本次任务记录 */}

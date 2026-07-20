@@ -577,6 +577,32 @@ def catch_logs(task_id: int = 0, limit: int = 100, x_auth_token: str = Header(de
     return {"rows": out}
 
 
+@app.get("/api/catch_stats")
+def catch_stats(start: str = "", end: str = "", x_auth_token: str = Header(default="")):
+    """收益查询：日期范围内(含两端, 按日)当前用户抓到的东西, 每种分开计数。"""
+    today = dt.date.today().strftime("%Y-%m-%d")
+    start = start.strip() or today
+    end = end.strip() or today
+    if not (re.fullmatch(r"\d{4}-\d{2}-\d{2}", start) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", end)):
+        raise HTTPException(400, "日期格式应为 YYYY-MM-DD")
+    if start > end:
+        start, end = end, start
+    db = conn()
+    _ensure_catch_tables(db)
+    user = _require_user(db, x_auth_token)
+    # 记录日期 = 录入时填的时间(catch_time)的日期部分；为空则用服务端入库时间
+    rows = [dict(r) for r in db.execute(
+        """SELECT l.category, l.name, l.sub_type, COUNT(*) AS count
+           FROM catch_log l JOIN catch_task t ON t.id = l.task_id
+           WHERE t.user_id = ?
+             AND substr(COALESCE(NULLIF(l.catch_time, ''), l.created_at), 1, 10) BETWEEN ? AND ?
+           GROUP BY l.category, l.name, l.sub_type
+           ORDER BY count DESC, l.category, l.name""",
+        (user["id"], start, end))]
+    db.close()
+    return {"start": start, "end": end, "rows": rows, "total": sum(r["count"] for r in rows)}
+
+
 # ============ 场景 / 宝宝 数据（scene + pet + scene_pet，供抓宝宝等功能复用）============
 def _ensure_pet_tables(db):
     db.execute("""CREATE TABLE IF NOT EXISTS scene(
