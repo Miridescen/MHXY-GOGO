@@ -510,46 +510,10 @@ function CatchLogView() {
       </div>
       </div>
 
-      {/* 收益查询：日期范围内每种东西分开统计 */}
-      <div style={{ flexBasis: '100%', maxWidth: 760, order: 9 }}>
-        <div style={{ background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 14, padding: 20 }}>
-          <div style={{ fontSize: 15, fontWeight: 800, color: '#2a221a', marginBottom: 14 }}>收益查询</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
-            <input type="date" value={statStart} onChange={e => setStatStart(e.target.value)} className="ctl" style={{ width: 155 }} />
-            <span style={{ color: '#a89878' }}>至</span>
-            <input type="date" value={statEnd} onChange={e => setStatEnd(e.target.value)} className="ctl" style={{ width: 155 }} />
-            <button className="btnH" onClick={() => loadStats()} disabled={statBusy}
-              style={{ padding: '10px 22px', fontSize: 13.5, fontWeight: 800, color: '#fff', background: statBusy ? '#d9cdbb' : '#c1452e', border: 'none', borderRadius: 8, cursor: statBusy ? 'default' : 'pointer', fontFamily: 'inherit' }}>查询</button>
-            <div style={{ display: 'flex', gap: 6 }}>
-              {([['今天', 1], ['近7天', 7], ['近30天', 30]] as const).map(([label, n]) => (
-                <button key={label} className="btnH" onClick={() => quickRange(n)}
-                  style={{ padding: '7px 12px', fontSize: 12, fontWeight: 700, color: '#6a5a44', background: '#f5ecdd', border: '1px solid #e6dac4', borderRadius: 7, cursor: 'pointer', fontFamily: 'inherit' }}>{label}</button>
-              ))}
-            </div>
-          </div>
-          {stats.length === 0 ? (
-            <div style={{ fontSize: 13, color: '#a89878' }}>该时间段内暂无收获记录</div>
-          ) : (
-            <>
-              <div style={{ fontSize: 12.5, color: '#8a7a5c', marginBottom: 10 }}>共 <span style={{ fontWeight: 900, color: '#c1452e' }}>{statTotal}</span> 件</div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {stats.map((s, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff', border: '1px solid #e6dac4', borderRadius: 9, padding: '8px 13px' }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: '#fff', padding: '1px 6px', borderRadius: 7,
-                      background: s.category === '召唤兽' ? '#c1452e' : s.category === '环装' ? '#8a4a12' : '#8a7a5c' }}>{s.category}</span>
-                    <span style={{ fontSize: 13.5, fontWeight: 700, color: '#2a221a' }}>{catchLabel(s)}</span>
-                    <span className="serif" style={{ fontSize: 14, fontWeight: 900, color: '#c1452e' }}>×{s.count}</span>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* 右列：本次任务记录 */}
+      {/* 右列：本次任务记录 + 收益查询 */}
+      <div style={{ flex: '1 1 340px', minWidth: 300 }}>
       {active && logs.length > 0 && (
-        <div style={{ flex: '1 1 340px', minWidth: 300 }}>
+        <div style={{ marginBottom: 22 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: '#5a4a34', marginBottom: 10 }}>本次任务记录（{logs.length}）</div>
           <div style={{ background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 12, overflow: 'hidden' }}>
             <div style={{ display: 'grid', gridTemplateColumns: '0.6fr 1.2fr 1fr 1.4fr', gap: 8, padding: '9px 14px', fontSize: 12, fontWeight: 700, color: '#a89878', borderBottom: '1px solid #ece2cf' }}>
@@ -569,6 +533,42 @@ function CatchLogView() {
           </div>
         </div>
       )}
+
+      {/* 收益查询：日期范围内每种东西分开统计 */}
+      <div style={{ background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 14, padding: 18 }}>
+        <div style={{ fontSize: 15, fontWeight: 800, color: '#2a221a', marginBottom: 12 }}>收益查询</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+          <input type="date" value={statStart} onChange={e => setStatStart(e.target.value)} className="ctl" style={{ width: 148 }} />
+          <span style={{ color: '#a89878' }}>至</span>
+          <input type="date" value={statEnd} onChange={e => setStatEnd(e.target.value)} className="ctl" style={{ width: 148 }} />
+          <button className="btnH" onClick={() => loadStats()} disabled={statBusy}
+            style={{ padding: '10px 18px', fontSize: 13, fontWeight: 800, color: '#fff', background: statBusy ? '#d9cdbb' : '#c1452e', border: 'none', borderRadius: 8, cursor: statBusy ? 'default' : 'pointer', fontFamily: 'inherit' }}>查询</button>
+        </div>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+          {([['今天', 1], ['近7天', 7], ['近30天', 30]] as const).map(([label, n]) => (
+            <button key={label} className="btnH" onClick={() => quickRange(n)}
+              style={{ padding: '6px 12px', fontSize: 12, fontWeight: 700, color: '#6a5a44', background: '#f5ecdd', border: '1px solid #e6dac4', borderRadius: 7, cursor: 'pointer', fontFamily: 'inherit' }}>{label}</button>
+          ))}
+        </div>
+        {stats.length === 0 ? (
+          <div style={{ fontSize: 13, color: '#a89878' }}>该时间段内暂无收获记录</div>
+        ) : (
+          <>
+            <div style={{ fontSize: 12.5, color: '#8a7a5c', marginBottom: 10 }}>共 <span style={{ fontWeight: 900, color: '#c1452e' }}>{statTotal}</span> 件</div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {stats.map((s, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff', border: '1px solid #e6dac4', borderRadius: 9, padding: '7px 12px' }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: '#fff', padding: '1px 6px', borderRadius: 7,
+                    background: s.category === '召唤兽' ? '#c1452e' : s.category === '环装' ? '#8a4a12' : '#8a7a5c' }}>{s.category}</span>
+                  <span style={{ fontSize: 13.5, fontWeight: 700, color: '#2a221a' }}>{catchLabel(s)}</span>
+                  <span className="serif" style={{ fontSize: 14, fontWeight: 900, color: '#c1452e' }}>×{s.count}</span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+      </div>
 
     </div>
   )
