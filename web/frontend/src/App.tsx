@@ -512,28 +512,6 @@ function CatchLogView() {
 
       {/* 右列：本次任务记录 + 收益查询 */}
       <div style={{ flex: '1 1 340px', minWidth: 300 }}>
-      {active && logs.length > 0 && (
-        <div style={{ marginBottom: 22 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#5a4a34', marginBottom: 10 }}>本次任务记录（{logs.length}）</div>
-          <div style={{ background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 12, overflow: 'hidden' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '0.6fr 1.2fr 1fr 1.4fr', gap: 8, padding: '9px 14px', fontSize: 12, fontWeight: 700, color: '#a89878', borderBottom: '1px solid #ece2cf' }}>
-              <div>类别</div><div>项目</div><div>坐标</div><div>时间</div>
-            </div>
-            {logs.map(l => (
-              <div key={l.id} style={{ display: 'grid', gridTemplateColumns: '0.6fr 1.2fr 1fr 1.4fr', gap: 8, padding: '9px 14px', fontSize: 12.5, color: '#3a3226', borderTop: '1px solid #f3ead9' }}>
-                <div style={{ color: '#a89878' }}>{l.category}</div>
-                <div>
-                  <span style={{ fontWeight: 700 }}>{catchLabel(l)}</span>
-                  {l.category === '召唤兽' && l.scene && <div style={{ fontSize: 10.5, color: '#a89878', marginTop: 1 }}>{l.scene}</div>}
-                </div>
-                <div>{l.coord_x == null && l.coord_y == null ? '—' : `${l.coord_x ?? '—'},${l.coord_y ?? '—'}`}</div>
-                <div>{(l.current_time || '—').replace('T', ' ')}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* 收益查询：日期范围内每种东西分开统计 */}
       <div style={{ background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 14, padding: 18 }}>
         <div style={{ fontSize: 15, fontWeight: 800, color: '#2a221a', marginBottom: 12 }}>收益查询</div>
@@ -568,6 +546,29 @@ function CatchLogView() {
           </>
         )}
       </div>
+
+      {active && logs.length > 0 && (
+        <div style={{ marginBottom: 22 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#5a4a34', marginBottom: 10 }}>本次任务记录（{logs.length}）</div>
+          <div style={{ background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 12, overflow: 'hidden' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '0.6fr 1.2fr 1fr 1.4fr', gap: 8, padding: '9px 14px', fontSize: 12, fontWeight: 700, color: '#a89878', borderBottom: '1px solid #ece2cf' }}>
+              <div>类别</div><div>项目</div><div>坐标</div><div>时间</div>
+            </div>
+            {logs.map(l => (
+              <div key={l.id} style={{ display: 'grid', gridTemplateColumns: '0.6fr 1.2fr 1fr 1.4fr', gap: 8, padding: '9px 14px', fontSize: 12.5, color: '#3a3226', borderTop: '1px solid #f3ead9' }}>
+                <div style={{ color: '#a89878' }}>{l.category}</div>
+                <div>
+                  <span style={{ fontWeight: 700 }}>{catchLabel(l)}</span>
+                  {l.category === '召唤兽' && l.scene && <div style={{ fontSize: 10.5, color: '#a89878', marginTop: 1 }}>{l.scene}</div>}
+                </div>
+                <div>{l.coord_x == null && l.coord_y == null ? '—' : `${l.coord_x ?? '—'},${l.coord_y ?? '—'}`}</div>
+                <div>{(l.current_time || '—').replace('T', ' ')}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       </div>
 
     </div>
