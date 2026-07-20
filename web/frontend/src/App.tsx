@@ -361,7 +361,7 @@ function CatchLogView() {
     const p = (n: number) => String(n).padStart(2, '0')
     return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
   }
-  const [statStart, setStatStart] = useState(dayStr(-6))
+  const [statStart, setStatStart] = useState(dayStr(-29))   // 默认近30天
   const [statEnd, setStatEnd] = useState(dayStr(0))
   const [stats, setStats] = useState<CatchStat[]>([])
   const [statTotal, setStatTotal] = useState(0)
