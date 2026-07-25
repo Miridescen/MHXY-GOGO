@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Routes, Route, NavLink, useLocation, useNavigate, Link } from 'react-router-dom'
-import { fetchOverview, fmt, serveridOf, serverCell, addCatchLog, fetchCatchLogs, startCatchTask, endCatchTask, fetchCatchTasks, fetchCatchStats, fetchScenePets, authLogin, authRegisterEmail, sendEmailCode, authMe, authLogout, CHANNEL_LABEL, type AuthUser, type Overview, type Item, type Region, type Roles, type RoleCell, type Equip, type EquipGroup, type CatchLog, type CatchTask, type CatchStat, type SceneGroup } from './api'
+import { fetchOverview, fmt, serveridOf, serverCell, addCatchLog, fetchCatchLogs, startCatchTask, endCatchTask, fetchCatchTasks, fetchCatchStats, fetchScenePets, fetchGoods, fetchGoodsPrices, saveGoodsPrices, authLogin, authRegisterEmail, sendEmailCode, authMe, authLogout, CHANNEL_LABEL, type AuthUser, type Overview, type Item, type Region, type Roles, type RoleCell, type Equip, type EquipGroup, type CatchLog, type CatchTask, type CatchStat, type SceneGroup, type GoodsCategory } from './api'
 
 const CBG = 'https://xyq.cbg.163.com/'
 const SEL_KEY = '__mhxy_sel'   // localStorage: 记住用户选的区服/模式
@@ -312,6 +312,105 @@ function AuthView({ mode, onAuth }: { mode: 'login' | 'register'; onAuth: (u: Au
             ? <>没有账号？<Link to="/register" style={{ color: '#c1452e', fontWeight: 700 }}>去注册</Link></>
             : <>已有账号？<Link to="/login" style={{ color: '#c1452e', fontWeight: 700 }}>去登录</Link></>}
         </div>
+      </div>
+    </div>
+  )
+}
+
+// 物品价格：登录用户按区服给物品打价格标签（为收益金钱统计铺垫）
+function GoodsView({ regions, initDaqu, initServer }: { regions: Region[]; initDaqu: string; initServer: string }) {
+  const [cats, setCats] = useState<GoodsCategory[]>([])
+  const [cat, setCat] = useState('')
+  const [daqu, setDaqu] = useState(initDaqu)
+  const [server, setServer] = useState(initServer)
+  const [vals, setVals] = useState<Record<number, string>>({})       // 当前编辑值
+  const [loaded, setLoaded] = useState<Record<number, string>>({})   // 服务端已存值
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+
+  const region = regions.find(r => r.daqu === daqu) || regions[0]
+  const servers = region?.servers || []
+  const sid = servers.find(s => s.name === server)?.serverid ?? servers[0]?.serverid
+
+  useEffect(() => { fetchGoods().then(c => { setCats(c); if (c[0]) setCat(c[0].name) }).catch(() => { /* ignore */ }) }, [])
+  useEffect(() => {
+    if (sid == null) return
+    fetchGoodsPrices(sid).then(p => {
+      const m: Record<number, string> = {}
+      Object.entries(p).forEach(([k, v]) => { m[Number(k)] = String(v) })
+      setVals(m); setLoaded(m); setMsg(null)
+    }).catch(() => { /* ignore */ })
+  }, [sid])
+
+  const pickDaqu = (d: string) => {
+    setDaqu(d)
+    const r = regions.find(x => x.daqu === d)
+    setServer(r?.servers[0]?.name || '')
+  }
+
+  const numOnly = (v: string) => v.replace(/[^\d.]/g, '').slice(0, 10)
+
+  const save = async () => {
+    const ids = new Set([...Object.keys(vals), ...Object.keys(loaded)].map(Number))
+    const changes: { goods_id: number; price: number | null }[] = []
+    ids.forEach(id => {
+      const v = (vals[id] ?? '').trim(), o = (loaded[id] ?? '').trim()
+      if (v === o) return
+      changes.push({ goods_id: id, price: v === '' ? null : Number(v) })
+    })
+    if (!changes.length) { setMsg({ ok: true, text: '没有修改' }); return }
+    if (changes.some(c => c.price != null && !isFinite(c.price))) { setMsg({ ok: false, text: '有价格不是有效数字' }); return }
+    setBusy(true); setMsg(null)
+    try {
+      const r = await saveGoodsPrices({ serverid: sid!, server_name: server, area_name: daqu, prices: changes })
+      setLoaded({ ...vals })
+      setMsg({ ok: true, text: `已保存 ${r.saved} 项${r.cleared ? `，清除 ${r.cleared} 项` : ''}` })
+    } catch (e) { setMsg({ ok: false, text: '保存失败：' + ((e as Error).message || e) }) }
+    setBusy(false)
+  }
+
+  const curGoods = cats.find(c => c.name === cat)?.goods || []
+  const pricedCount = Object.values(vals).filter(v => (v ?? '').trim() !== '').length
+
+  return (
+    <div style={{ maxWidth: 860 }}>
+      {/* 区服选择 + 保存 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
+        <select value={daqu} onChange={e => pickDaqu(e.target.value)} className="ctl" style={{ width: 150 }}>
+          {regions.map(r => <option key={r.daqu} value={r.daqu}>{r.daqu}</option>)}
+        </select>
+        <select value={server} onChange={e => setServer(e.target.value)} className="ctl" style={{ width: 150 }}>
+          {servers.map(s => <option key={s.serverid} value={s.name}>{s.name}</option>)}
+        </select>
+        <button className="btnH" onClick={save} disabled={busy}
+          style={{ padding: '10px 26px', fontSize: 13.5, fontWeight: 800, color: '#fff', background: busy ? '#d9cdbb' : '#c1452e', border: 'none', borderRadius: 8, cursor: busy ? 'default' : 'pointer', fontFamily: 'inherit' }}>
+          {busy ? '保存中…' : '保存'}
+        </button>
+        {msg && <span style={{ fontSize: 13, fontWeight: 700, color: msg.ok ? '#3a7a5a' : '#c1452e' }}>{msg.text}</span>}
+      </div>
+      <div style={{ fontSize: 12, color: '#a89878', marginBottom: 14 }}>
+        价格与当前区服绑定，单位自定（建议统一用「万」）；已设 {pricedCount} 项。留空并保存 = 清除该价格。
+      </div>
+
+      {/* 分类 */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+        {cats.map(c => (
+          <button key={c.name} className="btnH" onClick={() => setCat(c.name)}
+            style={{ fontSize: 13, fontWeight: 700, padding: '7px 16px', borderRadius: 7, cursor: 'pointer', border: '1px solid transparent', fontFamily: 'inherit', ...(c.name === cat ? { color: '#fff', background: '#c1452e' } : { color: '#6a5a44', background: '#f5ecdd' }) }}>
+            {c.name}（{c.goods.length}）
+          </button>
+        ))}
+      </div>
+
+      {/* 物品 + 价格输入 */}
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        {curGoods.map(g => (
+          <div key={g.id} style={{ width: 195, background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 10, padding: '10px 12px' }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#2a221a', marginBottom: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.name}</div>
+            <input value={vals[g.id] ?? ''} onChange={e => setVals({ ...vals, [g.id]: numOnly(e.target.value) })}
+              inputMode="decimal" placeholder="未设置" className="ctl" style={{ padding: '7px 10px', fontSize: 13 }} />
+          </div>
+        ))}
       </div>
     </div>
   )
@@ -635,7 +734,7 @@ export default function App() {
   const region: Region | undefined = useMemo(() => data?.regions.find(r => r.daqu === daqu) || data?.regions[0], [data, daqu])
   const curSid = useMemo(() => serveridOf(region, server), [region, server])
   const isGlobal = mode === 'global'
-  const isPrice = useLocation().pathname !== '/catch'   // 区服选择器仅比价页显示
+  const isPrice = useLocation().pathname === '/'   // 区服选择器仅比价页显示
 
   const list = useMemo(() => data?.items || [], [data])
 
@@ -680,7 +779,7 @@ export default function App() {
           </div>
           {/* 顶部导航（路由切换页面） */}
           <nav style={{ display: 'flex', gap: 4, marginLeft: 10 }}>
-            {([['/', '比价'], ['/catch', '场景记录']] as const).map(([to, label]) => (
+            {([['/', '比价'], ['/catch', '场景记录'], ['/goods', '物品价格']] as const).map(([to, label]) => (
               <NavLink key={to} to={to} end
                 style={({ isActive }) => ({ padding: '8px 15px', fontSize: 14, fontWeight: 800, textDecoration: 'none', borderRadius: 8, color: isActive ? '#fff' : '#8a7a5c', background: isActive ? '#c1452e' : 'transparent' })}>{label}</NavLink>
             ))}
@@ -844,6 +943,17 @@ export default function App() {
               <div style={{ maxWidth: 400, margin: '40px auto 0', background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 14, padding: 30, textAlign: 'center' }}>
                 <div style={{ fontSize: 16, fontWeight: 800, color: '#2a221a', marginBottom: 10 }}>场景记录需要登录后使用</div>
                 <div style={{ fontSize: 13, color: '#a89878', marginBottom: 20 }}>每位用户的任务和记录相互独立</div>
+                <Link to="/login" style={{ display: 'inline-block', textDecoration: 'none', fontSize: 14, fontWeight: 800, color: '#fff', background: '#c1452e', borderRadius: 8, padding: '11px 30px' }}>去登录 / 注册</Link>
+              </div>
+            )
+          } />
+          <Route path="/goods" element={
+            !authReady ? <div style={{ textAlign: 'center', padding: '60px 0', color: '#b0a48c' }}>加载中…</div>
+            : user ? <GoodsView regions={data.regions} initDaqu={daqu} initServer={server} />
+            : (
+              <div style={{ maxWidth: 400, margin: '40px auto 0', background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 14, padding: 30, textAlign: 'center' }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#2a221a', marginBottom: 10 }}>物品价格需要登录后使用</div>
+                <div style={{ fontSize: 13, color: '#a89878', marginBottom: 20 }}>每位用户按区服维护自己的价格标签</div>
                 <Link to="/login" style={{ display: 'inline-block', textDecoration: 'none', fontSize: 14, fontWeight: 800, color: '#fff', background: '#c1452e', borderRadius: 8, padding: '11px 30px' }}>去登录 / 注册</Link>
               </div>
             )

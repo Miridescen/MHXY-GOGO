@@ -116,6 +116,23 @@ export async function fetchCatchStats(start: string, end: string): Promise<{ sta
   return r.json()
 }
 
+// ---- 通用物品库 + 用户按区服自定义价格 ----
+export interface GoodsItem { id: number; name: string }
+export interface GoodsCategory { name: string; goods: GoodsItem[] }
+export async function fetchGoods(): Promise<GoodsCategory[]> {
+  const r = await fetch('/api/goods?_=' + Date.now())
+  if (!r.ok) throw new Error('HTTP ' + r.status)
+  return (await r.json()).categories
+}
+export async function fetchGoodsPrices(serverid: number): Promise<Record<string, number>> {
+  const r = await fetch(`/api/goods_prices?serverid=${serverid}&_=${Date.now()}`, { headers: authHeaders() })
+  if (!r.ok) throw new Error('HTTP ' + r.status)
+  return (await r.json()).prices
+}
+export async function saveGoodsPrices(body: { serverid: number; server_name: string; area_name: string; prices: { goods_id: number; price: number | null }[] }): Promise<{ ok: boolean; saved: number; cleared: number }> {
+  return jsonOrThrow(await fetch('/api/goods_prices', { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(body) }))
+}
+
 // ---- 用户系统：注册/登录（channel: normal 普通 | wechat 微信 | douyin 抖音）----
 export interface AuthUser { id: number; username: string; nickname: string; channel: string }
 export const CHANNEL_LABEL: Record<string, string> = { normal: '普通', wechat: '微信', douyin: '抖音' }

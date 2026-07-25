@@ -665,6 +665,88 @@ def pets_list(scene_id: int = 0):
     return {"rows": out}
 
 
+# ============ 通用物品库 + 用户按区服自定义价格（为收益金钱统计铺垫）============
+def _ensure_goods_tables(db):
+    # 物品：召唤兽/环装/宝石/养成等都是物品；name 与 catch_log 的展示名对齐(如 60环·武器)
+    db.execute("""CREATE TABLE IF NOT EXISTS goods(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE, category TEXT, sort INTEGER DEFAULT 0)""")
+    # 价格标签：用户 × 区服 × 物品 唯一，可反复修改
+    db.execute("""CREATE TABLE IF NOT EXISTS goods_price(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER, serverid INTEGER, server_name TEXT, area_name TEXT,
+        goods_id INTEGER, price REAL, updated_at TEXT,
+        UNIQUE(user_id, serverid, goods_id))""")
+
+
+class GoodsPriceItem(BaseModel):
+    goods_id: int
+    price: float | None = None   # null = 清除该价格
+
+
+class GoodsPriceBody(BaseModel):
+    serverid: int
+    server_name: str = ""
+    area_name: str = ""
+    prices: list[GoodsPriceItem]
+
+
+@app.get("/api/goods")
+def goods_list():
+    """物品列表，按分类分组（公开）。"""
+    db = conn()
+    _ensure_goods_tables(db)
+    cats: dict = {}
+    for r in db.execute("SELECT id, name, category FROM goods ORDER BY sort, id"):
+        cats.setdefault(r["category"], []).append({"id": r["id"], "name": r["name"]})
+    db.close()
+    order = ["召唤兽", "环装", "宝石类", "养成类", "任务类", "其他"]
+    out = [{"name": c, "goods": cats[c]} for c in order if c in cats]
+    out += [{"name": c, "goods": g} for c, g in cats.items() if c not in order]
+    return {"categories": out}
+
+
+@app.get("/api/goods_prices")
+def goods_prices(serverid: int, x_auth_token: str = Header(default="")):
+    """当前用户在某区服的全部价格标签 {goods_id: price}。"""
+    db = conn()
+    _ensure_goods_tables(db)
+    user = _require_user(db, x_auth_token)
+    prices = {str(r["goods_id"]): r["price"] for r in db.execute(
+        "SELECT goods_id, price FROM goods_price WHERE user_id=? AND serverid=?",
+        (user["id"], serverid))}
+    db.close()
+    return {"serverid": serverid, "prices": prices}
+
+
+@app.post("/api/goods_prices")
+def goods_prices_save(body: GoodsPriceBody, x_auth_token: str = Header(default="")):
+    """批量保存价格标签；price 为 null 表示清除。"""
+    db = conn()
+    _ensure_goods_tables(db)
+    user = _require_user(db, x_auth_token)
+    now = _server_now()
+    saved = cleared = 0
+    for it in body.prices:
+        if it.price is None:
+            cleared += db.execute("DELETE FROM goods_price WHERE user_id=? AND serverid=? AND goods_id=?",
+                                  (user["id"], body.serverid, it.goods_id)).rowcount
+        else:
+            if it.price < 0:
+                db.close()
+                raise HTTPException(400, "价格不能为负数")
+            db.execute("""INSERT INTO goods_price(user_id,serverid,server_name,area_name,goods_id,price,updated_at)
+                VALUES(?,?,?,?,?,?,?)
+                ON CONFLICT(user_id,serverid,goods_id) DO UPDATE SET
+                    price=excluded.price, server_name=excluded.server_name,
+                    area_name=excluded.area_name, updated_at=excluded.updated_at""",
+                       (user["id"], body.serverid, body.server_name, body.area_name, it.goods_id, it.price, now))
+            saved += 1
+    db.commit()
+    db.close()
+    return {"ok": True, "saved": saved, "cleared": cleared}
+
+
 # ============ 用户系统：注册 / 登录 / 会话（渠道: normal 普通 | wechat 微信 | douyin 抖音）============
 USER_CHANNELS = ("normal", "wechat", "douyin")
 SESSION_DAYS = 30
