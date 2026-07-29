@@ -117,12 +117,24 @@ export async function fetchCatchStats(start: string, end: string): Promise<{ sta
 }
 
 // ---- 通用物品库 + 用户按区服自定义价格 ----
-export interface GoodsItem { id: number; name: string }
-export interface GoodsCategory { name: string; goods: GoodsItem[] }
+export interface GoodsItem { id: number; name: string; custom?: boolean }
+export interface GoodsCategory { name: string; custom?: boolean; goods: GoodsItem[] }
 export async function fetchGoods(): Promise<GoodsCategory[]> {
-  const r = await fetch('/api/goods?_=' + Date.now())
+  const r = await fetch('/api/goods?_=' + Date.now(), { headers: authHeaders() })
   if (!r.ok) throw new Error('HTTP ' + r.status)
   return (await r.json()).categories
+}
+export async function addCustomGood(name: string, category: string): Promise<void> {
+  await jsonOrThrow(await fetch('/api/goods_custom', { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ name, category }) }))
+}
+export async function deleteCustomGood(goods_id: number): Promise<void> {
+  await jsonOrThrow(await fetch('/api/goods_custom_delete', { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ goods_id }) }))
+}
+export async function addGoodsCategory(name: string): Promise<void> {
+  await jsonOrThrow(await fetch('/api/goods_category', { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ name }) }))
+}
+export async function deleteGoodsCategory(name: string): Promise<void> {
+  await jsonOrThrow(await fetch('/api/goods_category_delete', { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ name }) }))
 }
 export async function fetchGoodsPrices(serverid: number): Promise<Record<string, number>> {
   const r = await fetch(`/api/goods_prices?serverid=${serverid}&_=${Date.now()}`, { headers: authHeaders() })

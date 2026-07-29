@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Routes, Route, NavLink, useLocation, useNavigate, Link } from 'react-router-dom'
-import { fetchOverview, fmt, serveridOf, serverCell, addCatchLog, fetchCatchLogs, startCatchTask, endCatchTask, fetchCatchTasks, fetchCatchStats, fetchScenePets, fetchGoods, fetchGoodsPrices, saveGoodsPrices, authLogin, authRegisterEmail, sendEmailCode, authMe, authLogout, CHANNEL_LABEL, type AuthUser, type Overview, type Item, type Region, type Roles, type RoleCell, type Equip, type EquipGroup, type CatchLog, type CatchTask, type CatchStat, type SceneGroup, type GoodsCategory } from './api'
+import { fetchOverview, fmt, serveridOf, serverCell, addCatchLog, fetchCatchLogs, startCatchTask, endCatchTask, fetchCatchTasks, fetchCatchStats, fetchScenePets, fetchGoods, fetchGoodsPrices, saveGoodsPrices, addCustomGood, deleteCustomGood, addGoodsCategory, deleteGoodsCategory, authLogin, authRegisterEmail, sendEmailCode, authMe, authLogout, CHANNEL_LABEL, type AuthUser, type Overview, type Item, type Region, type Roles, type RoleCell, type Equip, type EquipGroup, type CatchLog, type CatchTask, type CatchStat, type SceneGroup, type GoodsCategory } from './api'
 
 const CBG = 'https://xyq.cbg.163.com/'
 const SEL_KEY = '__mhxy_sel'   // localStorage: 记住用户选的区服/模式
@@ -332,7 +332,54 @@ function GoodsView({ regions, initDaqu, initServer }: { regions: Region[]; initD
   const servers = region?.servers || []
   const sid = servers.find(s => s.name === server)?.serverid ?? servers[0]?.serverid
 
+  // 自定义分类/物品
+  const [showNewCat, setShowNewCat] = useState(false)
+  const [newCatName, setNewCatName] = useState('')
+  const [newGoodName, setNewGoodName] = useState('')
+
+  const reloadGoods = (keepCat?: string) => fetchGoods().then(c => {
+    setCats(c)
+    const want = keepCat ?? cat
+    setCat(c.some(x => x.name === want) ? want : (c[0]?.name || ''))
+  }).catch(() => { /* ignore */ })
+
   useEffect(() => { fetchGoods().then(c => { setCats(c); if (c[0]) setCat(c[0].name) }).catch(() => { /* ignore */ }) }, [])
+
+  const doAddCategory = async () => {
+    const n = newCatName.trim()
+    if (!n) return
+    try {
+      await addGoodsCategory(n)
+      setNewCatName(''); setShowNewCat(false)
+      await reloadGoods(n)
+      setMsg({ ok: true, text: `已添加分类「${n}」` })
+    } catch (e) { setMsg({ ok: false, text: (e as Error).message }) }
+  }
+  const doDelCategory = async (n: string) => {
+    if (!window.confirm(`删除分类「${n}」？该分类下你添加的物品及价格会一并删除`)) return
+    try { await deleteGoodsCategory(n); await reloadGoods(''); setMsg({ ok: true, text: `已删除分类「${n}」` }) }
+    catch (e) { setMsg({ ok: false, text: (e as Error).message }) }
+  }
+  const doAddGood = async () => {
+    const n = newGoodName.trim()
+    if (!n || !cat) return
+    try {
+      await addCustomGood(n, cat)
+      setNewGoodName('')
+      await reloadGoods()
+      setMsg({ ok: true, text: `已添加「${n}」` })
+    } catch (e) { setMsg({ ok: false, text: (e as Error).message }) }
+  }
+  const doDelGood = async (id: number, n: string) => {
+    if (!window.confirm(`删除物品「${n}」？其价格标签会一并删除`)) return
+    try {
+      await deleteCustomGood(id)
+      const v = { ...vals }; delete v[id]; setVals(v)
+      const o = { ...loaded }; delete o[id]; setLoaded(o)
+      await reloadGoods()
+      setMsg({ ok: true, text: `已删除「${n}」` })
+    } catch (e) { setMsg({ ok: false, text: (e as Error).message }) }
+  }
   useEffect(() => {
     if (sid == null) return
     fetchGoodsPrices(sid).then(p => {
@@ -392,25 +439,55 @@ function GoodsView({ regions, initDaqu, initServer }: { regions: Region[]; initD
         价格与当前区服绑定，单位自定（建议统一用「万」）；已设 {pricedCount} 项。留空并保存 = 清除该价格。
       </div>
 
-      {/* 分类 */}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+      {/* 分类（自定义分类带 ×，可新增分类） */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16 }}>
         {cats.map(c => (
           <button key={c.name} className="btnH" onClick={() => setCat(c.name)}
-            style={{ fontSize: 13, fontWeight: 700, padding: '7px 16px', borderRadius: 7, cursor: 'pointer', border: '1px solid transparent', fontFamily: 'inherit', ...(c.name === cat ? { color: '#fff', background: '#c1452e' } : { color: '#6a5a44', background: '#f5ecdd' }) }}>
+            style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, padding: '7px 16px', borderRadius: 7, cursor: 'pointer', border: '1px solid transparent', fontFamily: 'inherit', ...(c.name === cat ? { color: '#fff', background: '#c1452e' } : { color: '#6a5a44', background: '#f5ecdd' }) }}>
             {c.name}（{c.goods.length}）
+            {c.custom && <span onClick={e => { e.stopPropagation(); doDelCategory(c.name) }}
+              style={{ fontSize: 13, lineHeight: 1, opacity: .7 }} title="删除该分类">×</span>}
           </button>
         ))}
+        {showNewCat ? (
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <input value={newCatName} onChange={e => setNewCatName(e.target.value)} placeholder="新分类名" autoFocus
+              onKeyDown={e => { if (e.key === 'Enter') doAddCategory(); if (e.key === 'Escape') setShowNewCat(false) }}
+              className="ctl" style={{ width: 120, padding: '6px 10px', fontSize: 13 }} />
+            <button className="btnH" onClick={doAddCategory}
+              style={{ padding: '7px 12px', fontSize: 12.5, fontWeight: 700, color: '#fff', background: '#3a7a5a', border: 'none', borderRadius: 7, cursor: 'pointer', fontFamily: 'inherit' }}>确定</button>
+            <button className="btnH" onClick={() => { setShowNewCat(false); setNewCatName('') }}
+              style={{ padding: '7px 10px', fontSize: 12.5, fontWeight: 700, color: '#8a7a5c', background: 'transparent', border: '1px solid #e0d2b8', borderRadius: 7, cursor: 'pointer', fontFamily: 'inherit' }}>取消</button>
+          </div>
+        ) : (
+          <button className="btnH" onClick={() => setShowNewCat(true)}
+            style={{ fontSize: 13, fontWeight: 700, padding: '7px 14px', borderRadius: 7, cursor: 'pointer', border: '1px dashed #d0b98f', background: 'transparent', color: '#a8351f', fontFamily: 'inherit' }}>＋ 新分类</button>
+        )}
       </div>
 
-      {/* 物品 + 价格输入 */}
+      {/* 物品 + 价格输入（自定义物品带 ×，尾部可添加物品） */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         {curGoods.map(g => (
-          <div key={g.id} style={{ width: 195, background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 10, padding: '10px 12px' }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#2a221a', marginBottom: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.name}</div>
+          <div key={g.id} style={{ width: 195, background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 10, padding: '10px 12px', position: 'relative' }}>
+            {g.custom && <span onClick={() => doDelGood(g.id, g.name)} title="删除该物品"
+              style={{ position: 'absolute', top: 5, right: 9, fontSize: 14, color: '#b0a48c', cursor: 'pointer', fontWeight: 700 }}>×</span>}
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#2a221a', marginBottom: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', paddingRight: g.custom ? 14 : 0 }}>{g.name}</div>
             <input value={vals[g.id] ?? ''} onChange={e => setVals({ ...vals, [g.id]: numOnly(e.target.value) })}
               inputMode="decimal" placeholder="未设置" className="ctl" style={{ padding: '7px 10px', fontSize: 13 }} />
           </div>
         ))}
+        {cat && (
+          <div style={{ width: 195, background: 'transparent', border: '1px dashed #d0b98f', borderRadius: 10, padding: '10px 12px' }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#a8351f', marginBottom: 6 }}>＋ 添加物品到「{cat}」</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input value={newGoodName} onChange={e => setNewGoodName(e.target.value)} placeholder="如 魔兽要诀"
+                onKeyDown={e => { if (e.key === 'Enter') doAddGood() }}
+                className="ctl" style={{ padding: '7px 10px', fontSize: 13 }} />
+              <button className="btnH" onClick={doAddGood}
+                style={{ flexShrink: 0, padding: '0 12px', fontSize: 13, fontWeight: 800, color: '#fff', background: '#3a7a5a', border: 'none', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}>加</button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

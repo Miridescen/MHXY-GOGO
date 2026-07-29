@@ -668,9 +668,16 @@ def pets_list(scene_id: int = 0):
 # ============ 通用物品库 + 用户按区服自定义价格（为收益金钱统计铺垫）============
 def _ensure_goods_tables(db):
     # 物品：召唤兽/环装/宝石/养成等都是物品；name 与 catch_log 的展示名对齐(如 60环·武器)
+    # user_id 为空=系统物品(所有人可见)；有值=该用户自定义物品(仅本人可见/可删)
     db.execute("""CREATE TABLE IF NOT EXISTS goods(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT UNIQUE, category TEXT, sort INTEGER DEFAULT 0)""")
+        name TEXT UNIQUE, category TEXT, sort INTEGER DEFAULT 0, user_id INTEGER)""")
+    if "user_id" not in [r[1] for r in db.execute("PRAGMA table_info(goods)")]:
+        db.execute("ALTER TABLE goods ADD COLUMN user_id INTEGER")
+    # 用户自定义分类（允许先建空分类再往里加物品）
+    db.execute("""CREATE TABLE IF NOT EXISTS user_category(
+        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, name TEXT,
+        UNIQUE(user_id, name))""")
     # 价格标签：用户 × 区服 × 物品 唯一，可反复修改
     db.execute("""CREATE TABLE IF NOT EXISTS goods_price(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -692,18 +699,121 @@ class GoodsPriceBody(BaseModel):
 
 
 @app.get("/api/goods")
-def goods_list():
-    """物品列表，按分类分组（公开）。"""
+def goods_list(x_auth_token: str = Header(default="")):
+    """物品列表，按分类分组。系统物品所有人可见；带登录态时并入本人自定义分类/物品。"""
     db = conn()
     _ensure_goods_tables(db)
+    _ensure_user_tables(db)
+    user = _session_user(db, x_auth_token)
+    uid = user["id"] if user else -1
     cats: dict = {}
-    for r in db.execute("SELECT id, name, category FROM goods ORDER BY sort, id"):
-        cats.setdefault(r["category"], []).append({"id": r["id"], "name": r["name"]})
+    for r in db.execute("SELECT id, name, category, user_id FROM goods WHERE user_id IS NULL OR user_id=? ORDER BY sort, id", (uid,)):
+        cats.setdefault(r["category"], []).append(
+            {"id": r["id"], "name": r["name"], "custom": r["user_id"] is not None})
+    custom_cats = set()
+    for r in db.execute("SELECT name FROM user_category WHERE user_id=? ORDER BY id", (uid,)):
+        custom_cats.add(r["name"])
+        cats.setdefault(r["name"], [])
     db.close()
     order = ["召唤兽", "环装", "宝石类", "养成类", "任务类", "其他"]
-    out = [{"name": c, "goods": cats[c]} for c in order if c in cats]
-    out += [{"name": c, "goods": g} for c, g in cats.items() if c not in order]
+    out = [{"name": c, "custom": c in custom_cats, "goods": cats[c]} for c in order if c in cats]
+    out += [{"name": c, "custom": c in custom_cats, "goods": g} for c, g in cats.items() if c not in order]
     return {"categories": out}
+
+
+class CustomGoodBody(BaseModel):
+    name: str
+    category: str
+
+
+class DelGoodBody(BaseModel):
+    goods_id: int
+
+
+class CategoryBody(BaseModel):
+    name: str
+
+
+@app.post("/api/goods_custom")
+def goods_custom_add(body: CustomGoodBody, x_auth_token: str = Header(default="")):
+    """添加自定义物品到某分类（仅本人可见）。"""
+    name = body.name.strip()
+    category = body.category.strip()
+    if not (1 <= len(name) <= 30):
+        raise HTTPException(400, "物品名 1-30 字")
+    if not (1 <= len(category) <= 20):
+        raise HTTPException(400, "分类名 1-20 字")
+    db = conn()
+    _ensure_goods_tables(db)
+    user = _require_user(db, x_auth_token)
+    if db.execute("SELECT 1 FROM goods WHERE name=?", (name,)).fetchone():
+        db.close()
+        raise HTTPException(400, "该物品已存在")
+    sort = (db.execute("SELECT COALESCE(MAX(sort),0) FROM goods").fetchone()[0] or 0) + 1
+    cur = db.execute("INSERT INTO goods(name,category,sort,user_id) VALUES(?,?,?,?)",
+                     (name, category, sort, user["id"]))
+    db.commit()
+    gid = cur.lastrowid
+    db.close()
+    return {"ok": True, "id": gid, "name": name, "category": category}
+
+
+@app.post("/api/goods_custom_delete")
+def goods_custom_delete(body: DelGoodBody, x_auth_token: str = Header(default="")):
+    """删除自己添加的物品（连带清掉自己给它标的价格）。系统物品不可删。"""
+    db = conn()
+    _ensure_goods_tables(db)
+    user = _require_user(db, x_auth_token)
+    row = db.execute("SELECT id FROM goods WHERE id=? AND user_id=?", (body.goods_id, user["id"])).fetchone()
+    if not row:
+        db.close()
+        raise HTTPException(400, "只能删除自己添加的物品")
+    db.execute("DELETE FROM goods WHERE id=?", (body.goods_id,))
+    db.execute("DELETE FROM goods_price WHERE goods_id=? AND user_id=?", (body.goods_id, user["id"]))
+    db.commit()
+    db.close()
+    return {"ok": True}
+
+
+@app.post("/api/goods_category")
+def goods_category_add(body: CategoryBody, x_auth_token: str = Header(default="")):
+    """添加自定义分类（仅本人可见，可先建空分类）。"""
+    name = body.name.strip()
+    if not (1 <= len(name) <= 20):
+        raise HTTPException(400, "分类名 1-20 字")
+    db = conn()
+    _ensure_goods_tables(db)
+    user = _require_user(db, x_auth_token)
+    exists = db.execute("SELECT 1 FROM goods WHERE category=? AND (user_id IS NULL OR user_id=?) LIMIT 1",
+                        (name, user["id"])).fetchone() or \
+        db.execute("SELECT 1 FROM user_category WHERE user_id=? AND name=?", (user["id"], name)).fetchone()
+    if exists:
+        db.close()
+        raise HTTPException(400, "该分类已存在")
+    db.execute("INSERT INTO user_category(user_id,name) VALUES(?,?)", (user["id"], name))
+    db.commit()
+    db.close()
+    return {"ok": True, "name": name}
+
+
+@app.post("/api/goods_category_delete")
+def goods_category_delete(body: CategoryBody, x_auth_token: str = Header(default="")):
+    """删除自己的分类：连带删除自己加在该分类下的物品及其价格。系统分类不可删。"""
+    name = body.name.strip()
+    db = conn()
+    _ensure_goods_tables(db)
+    user = _require_user(db, x_auth_token)
+    if not db.execute("SELECT 1 FROM user_category WHERE user_id=? AND name=?", (user["id"], name)).fetchone():
+        db.close()
+        raise HTTPException(400, "只能删除自己添加的分类")
+    gids = [r[0] for r in db.execute("SELECT id FROM goods WHERE category=? AND user_id=?", (name, user["id"]))]
+    for gid in gids:
+        db.execute("DELETE FROM goods_price WHERE goods_id=? AND user_id=?", (gid, user["id"]))
+        db.execute("DELETE FROM goods WHERE id=?", (gid,))
+    db.execute("DELETE FROM user_category WHERE user_id=? AND name=?", (user["id"], name))
+    db.commit()
+    db.close()
+    return {"ok": True, "removed_goods": len(gids)}
 
 
 @app.get("/api/goods_prices")
