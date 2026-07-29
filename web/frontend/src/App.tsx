@@ -430,7 +430,6 @@ function CatchLogView() {
   const [ringSub, setRingSub] = useState<'武器' | '装备'>('武器')
   const [coordX, setCoordX] = useState('')
   const [coordY, setCoordY] = useState('')
-  const [curTime, setCurTime] = useState(nowLocal())
   const numOnly = (v: string) => v.replace(/\D/g, '').slice(0, 4)   // 只留数字，最多4位
   const catchLabel = (c: { category: string; name: string; sub_type: string }) =>
     c.category === '环装' ? `${c.name}环·${c.sub_type}` : c.category === '告密' ? '告密' : c.name
@@ -514,9 +513,9 @@ function CatchLogView() {
     // 告密：只有坐标 + 时间，name/sub_type 留空。坐标可填可不填（输入框已限制只能输数字）
     setBusy(true); setMsg(null)
     try {
-      await addCatchLog({ task_id: active.id, category, scene, name, sub_type, coord_x: coordX.trim(), coord_y: coordY.trim(), current_time: curTime })
+      await addCatchLog({ task_id: active.id, category, scene, name, sub_type, coord_x: coordX.trim(), coord_y: coordY.trim(), current_time: nowLocal() })
       setMsg({ ok: true, text: '已录入 ✓' })
-      setCoordX(''); setCoordY(''); setCurTime(nowLocal())
+      setCoordX(''); setCoordY('')
       await Promise.all([fetchCatchLogs(active.id).then(setLogs), loadTasks(), loadStats()])
     } catch (e) { setMsg({ ok: false, text: '录入失败：' + ((e as Error).message || e) }) }
     setBusy(false)
@@ -587,13 +586,6 @@ function CatchLogView() {
             </div>
           </div>
         )}
-        <div style={{ marginBottom: 14 }}>
-          <label style={labelStyle}>当前时间</label>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input type="datetime-local" value={curTime} onChange={e => setCurTime(e.target.value)} className="ctl" />
-            <button className="btnH" onClick={() => setCurTime(nowLocal())} style={{ flexShrink: 0, padding: '0 14px', fontSize: 12.5, fontWeight: 700, color: '#a8351f', background: '#fbeee8', border: '1px solid #ecccc2', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}>现在</button>
-          </div>
-        </div>
         <div style={{ marginBottom: 18 }}>
           <label style={labelStyle}>坐标 <span style={{ color: '#a89878', fontWeight: 400 }}>（可选，纯数字）</span></label>
           <div style={{ display: 'flex', gap: 12 }}>

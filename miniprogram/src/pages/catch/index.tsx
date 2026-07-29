@@ -32,7 +32,6 @@ export default function CatchPage() {
   const [ringSubIdx, setRingSubIdx] = useState(0)
   const [coordX, setCoordX] = useState('')
   const [coordY, setCoordY] = useState('')
-  const [curTime, setCurTime] = useState(nowLocal())
   const [busy, setBusy] = useState(false)
   const [tasks, setTasks] = useState<CatchTask[]>([])
   const [logs, setLogs] = useState<CatchLog[]>([])
@@ -90,16 +89,12 @@ export default function CatchPage() {
     }
     setBusy(true)
     try {
-      await addCatchLog({ task_id: active.id, category, scene, name, sub_type, coord_x: coordX, coord_y: coordY, current_time: curTime })
-      setCoordX(''); setCoordY(''); setCurTime(nowLocal())
+      await addCatchLog({ task_id: active.id, category, scene, name, sub_type, coord_x: coordX, coord_y: coordY, current_time: nowLocal() })
+      setCoordX(''); setCoordY('')
       await Promise.all([fetchCatchLogs(active.id).then(setLogs), loadTasks()])
     } catch (e) { toast('录入失败：' + (e as Error).message) }
     setBusy(false)
   }
-
-  // 时间：Picker(mode=time) 只给 HH:mm，日期取今天
-  const timeHM = curTime.slice(11, 16)
-  const onTimePick = (e: any) => setCurTime(`${curTime.slice(0, 10)}T${e.detail.value}`)
 
   const retryLogin = () => {
     setAuthReady(false)
@@ -180,14 +175,6 @@ export default function CatchPage() {
             </View>
           </View>
         )}
-
-        <View className='fLabel'>当前时间</View>
-        <View className='timeRow'>
-          <Picker mode='time' value={timeHM} onChange={onTimePick}>
-            <View className='pickerBox'>{curTime.replace('T', ' ')} <Text className='caret'>▾</Text></View>
-          </Picker>
-          <View className='nowBtn' onClick={() => setCurTime(nowLocal())}>现在</View>
-        </View>
 
         <View className='fLabel'>坐标 <Text className='fNote'>（可选，纯数字）</Text></View>
         <View className='twoCol'>
