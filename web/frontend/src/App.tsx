@@ -499,7 +499,7 @@ function CatchLogView() {
     const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
     return d.toISOString().slice(0, 16)   // 'YYYY-MM-DDTHH:mm'（本地时区）
   }
-  const [category, setCategory] = useState<'召唤兽' | '环装' | '告密'>('召唤兽')
+  const [category, setCategory] = useState<'召唤兽' | '环装'>('召唤兽')
   const [scenes, setScenes] = useState<SceneGroup[]>([])
   const [sceneId, setSceneId] = useState<number>(0)
   const [petName, setPetName] = useState('')
@@ -587,7 +587,6 @@ function CatchLogView() {
     let name = '', sub_type = '', scene = ''
     if (category === '召唤兽') { name = petName; scene = curScene?.name || ''; if (!name) { setMsg({ ok: false, text: '请选择召唤兽' }); return } }
     else if (category === '环装') { name = ringLevel; sub_type = ringSub; if (!name) { setMsg({ ok: false, text: '请选择环装级别' }); return } }
-    // 告密：只有坐标 + 时间，name/sub_type 留空。坐标可填可不填（输入框已限制只能输数字）
     setBusy(true); setMsg(null)
     try {
       await addCatchLog({ task_id: active.id, category, scene, name, sub_type, coord_x: coordX.trim(), coord_y: coordY.trim(), current_time: nowLocal() })
@@ -625,7 +624,7 @@ function CatchLogView() {
         <div style={{ marginBottom: 14 }}>
           <label style={labelStyle}>类别</label>
           <div style={{ display: 'flex', gap: 8 }}>
-            {(['召唤兽', '环装', '告密'] as const).map(c => (
+            {(['召唤兽', '环装'] as const).map(c => (
               <button className="btnH" key={c} onClick={() => setCategory(c)}
                 style={{ flex: 1, padding: '9px 0', fontSize: 13.5, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer', borderRadius: 8, border: '1px solid ' + (category === c ? '#c1452e' : '#e0d4bd'), background: category === c ? '#c1452e' : '#fff', color: category === c ? '#fff' : '#6a5a44' }}>{c}</button>
             ))}

@@ -45,10 +45,9 @@ def main():
            WHERE s.hidden = 0
            ORDER BY p.carry_lv DESC, LTRIM(p.name,'变异'), LENGTH(p.name)""").fetchall():
         add(name, "召唤兽")
-    # 环装 + 告密
+    # 环装
     for r in RINGS:
         add(r, "环装")
-    add("告密", "其他")
     # 常用交易物品
     for g in GEMS:
         add(g, "宝石类")

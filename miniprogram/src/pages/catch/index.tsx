@@ -24,7 +24,7 @@ const catchLabel = (c: { category: string; name: string; sub_type: string }) =>
   c.category === '环装' ? `${c.name}环·${c.sub_type}` : c.category === '告密' ? '告密' : c.name
 
 export default function CatchPage() {
-  const [category, setCategory] = useState<'召唤兽' | '环装' | '告密'>('召唤兽')
+  const [category, setCategory] = useState<'召唤兽' | '环装'>('召唤兽')
   const [scenes, setScenes] = useState<SceneGroup[]>([])
   const [sceneIdx, setSceneIdx] = useState(0)
   const [petIdx, setPetIdx] = useState(0)
@@ -135,7 +135,7 @@ export default function CatchPage() {
       <View className={'cardBox ' + (active ? '' : 'dim')}>
         <View className='fLabel'>类别</View>
         <View className='catRow'>
-          {(['召唤兽', '环装', '告密'] as const).map(c => (
+          {(['召唤兽', '环装'] as const).map(c => (
             <View key={c} className={'catBtn ' + (category === c ? 'catOn' : '')} onClick={() => setCategory(c)}>{c}</View>
           ))}
         </View>

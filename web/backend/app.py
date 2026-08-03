@@ -412,7 +412,7 @@ def ingest_role(body: RoleIngestBody, x_token: str = Header(default="")):
 
 
 # ============ 抓宝宝：大任务(catch_task) + 小任务/每次抓到(catch_log) ============
-CATCH_CATEGORIES = ("召唤兽", "环装", "告密")
+CATCH_CATEGORIES = ("召唤兽", "环装")
 RING_SUB_TYPES = ("武器", "装备")
 
 
@@ -503,18 +503,15 @@ def catch_log_add(body: CatchLogBody, x_auth_token: str = Header(default="")):
     name = body.name.strip()
     sub_type = body.sub_type.strip()
     if category not in CATCH_CATEGORIES:
-        raise HTTPException(400, "类别应为 召唤兽 / 环装 / 告密")
+        raise HTTPException(400, "类别应为 召唤兽 / 环装")
     if category == "环装":
         if not name:
             raise HTTPException(400, "请选择环装级别")
         if sub_type not in RING_SUB_TYPES:
             raise HTTPException(400, "环装需选择 武器 或 装备")
-    elif category == "召唤兽":
+    else:   # 召唤兽
         if not name:
             raise HTTPException(400, "请选择召唤兽")
-        sub_type = ""
-    else:   # 告密：只有坐标 + 时间
-        name = ""
         sub_type = ""
     cx, cy = body.coord_x.strip(), body.coord_y.strip()
     if (cx and not cx.isdigit()) or (cy and not cy.isdigit()):
