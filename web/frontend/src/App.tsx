@@ -327,11 +327,13 @@ function CalcView() {
     return fmtNum(n)
   }
   const numOnly = (v: string) => v.replace(/\D/g, '').slice(0, 12)
-  const labelStyle: CSSProperties = { fontSize: 13, fontWeight: 700, color: '#5a4a34', marginBottom: 6, display: 'block' }
-  const cardStyle: CSSProperties = { flex: '1 1 300px', minWidth: 280, maxWidth: 420, background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 14, padding: 20, alignSelf: 'flex-start' }
-  const titleStyle: CSSProperties = { fontSize: 15, fontWeight: 800, color: '#c1452e', borderLeft: '3px solid #c1452e', paddingLeft: 10, marginBottom: 14 }
-  const resStyle: CSSProperties = { fontSize: 13, color: '#3a3226', background: '#fff', border: '1px solid #e6dac4', borderRadius: 9, padding: '10px 12px', marginTop: 12, lineHeight: 1.9 }
-  const btnStyle: CSSProperties = { padding: '10px 24px', fontSize: 13.5, fontWeight: 800, color: '#fff', background: '#c1452e', border: 'none', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }
+  const labelStyle: CSSProperties = { fontSize: 13, fontWeight: 700, color: '#5a4a34', marginBottom: 8, display: 'block' }
+  const cardStyle: CSSProperties = { background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 14, padding: 20 }
+  const titleStyle: CSSProperties = { fontSize: 15, fontWeight: 800, color: '#c1452e', borderLeft: '3px solid #c1452e', paddingLeft: 10, marginBottom: 16 }
+  const rowStyle: CSSProperties = { display: 'flex', gap: 8, alignItems: 'center' }
+  const dividerStyle: CSSProperties = { borderTop: '1px dashed #e6dac4', margin: '18px 0' }
+  const resStyle: CSSProperties = { fontSize: 13, color: '#3a3226', background: '#fff', border: '1px solid #e6dac4', borderRadius: 9, padding: '10px 12px', marginTop: 10, lineHeight: 1.9 }
+  const btnStyle: CSSProperties = { width: '100%', marginTop: 10, padding: '10px 0', fontSize: 13.5, fontWeight: 800, letterSpacing: 4, color: '#fff', background: '#c1452e', border: 'none', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }
 
   // 工具1: 经验换算
   const [lvFrom, setLvFrom] = useState(''); const [lvTo, setLvTo] = useState('')
@@ -424,41 +426,36 @@ function CalcView() {
   }
 
   return (
-    <div>
+    <div style={{ maxWidth: 1080 }}>
       <div style={{ fontSize: 12, color: '#a89878', marginBottom: 16 }}>数据与算法迁自官方梦幻工具箱，本地即时计算</div>
-      <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(310px, 1fr))', gap: 18, alignItems: 'start' }}>
         {/* 经验换算 */}
         <div style={cardStyle}>
           <div style={titleStyle}>经验换算</div>
-          <div style={{ marginBottom: 12 }}>
-            <label style={labelStyle}>等级换算经验</label>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <input value={lvFrom} onChange={e => setLvFrom(numOnly(e.target.value))} inputMode="numeric" placeholder="当前等级" className="ctl" />
-              <span style={{ color: '#a89878' }}>→</span>
-              <input value={lvTo} onChange={e => setLvTo(numOnly(e.target.value))} inputMode="numeric" placeholder="目标等级" className="ctl" />
-              <button className="btnH" style={btnStyle} onClick={calcLvToExp}>查询</button>
-            </div>
-            {lvRes && <div style={resStyle}>{lvRes}</div>}
+          <label style={labelStyle}>等级 → 需要经验</label>
+          <div style={rowStyle}>
+            <input value={lvFrom} onChange={e => setLvFrom(numOnly(e.target.value))} inputMode="numeric" placeholder="当前等级" className="ctl" />
+            <span style={{ color: '#a89878', flexShrink: 0 }}>→</span>
+            <input value={lvTo} onChange={e => setLvTo(numOnly(e.target.value))} inputMode="numeric" placeholder="目标等级" className="ctl" />
           </div>
-          <div>
-            <label style={labelStyle}>经验换算等级</label>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <input value={expVal} onChange={e => setExpVal(numOnly(e.target.value))} inputMode="numeric" placeholder="当前经验" className="ctl" />
-              <input value={expLv} onChange={e => setExpLv(numOnly(e.target.value))} inputMode="numeric" placeholder="当前等级" className="ctl" style={{ width: 110, flexShrink: 0 }} />
-              <button className="btnH" style={btnStyle} onClick={calcExpToLv}>查询</button>
-            </div>
-            {expRes && <div style={resStyle}>{expRes}</div>}
+          <button className="btnH" style={btnStyle} onClick={calcLvToExp}>查询</button>
+          {lvRes && <div style={resStyle}>{lvRes}</div>}
+          <div style={dividerStyle} />
+          <label style={labelStyle}>经验 → 可达等级</label>
+          <div style={rowStyle}>
+            <input value={expVal} onChange={e => setExpVal(numOnly(e.target.value))} inputMode="numeric" placeholder="当前经验" className="ctl" />
+            <input value={expLv} onChange={e => setExpLv(numOnly(e.target.value))} inputMode="numeric" placeholder="当前等级" className="ctl" style={{ width: 110, flexShrink: 0 }} />
           </div>
+          <button className="btnH" style={btnStyle} onClick={calcExpToLv}>查询</button>
+          {expRes && <div style={resStyle}>{expRes}</div>}
         </div>
 
         {/* 常规计算 */}
         <div style={cardStyle}>
           <div style={titleStyle}>常规计算</div>
-          <label style={labelStyle}>人物等级</label>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input value={cgLv} onChange={e => setCgLv(numOnly(e.target.value))} inputMode="numeric" placeholder="0-175" className="ctl" />
-            <button className="btnH" style={btnStyle} onClick={calcChanggui}>查询</button>
-          </div>
+          <label style={labelStyle}>人物等级（0-175）</label>
+          <input value={cgLv} onChange={e => setCgLv(numOnly(e.target.value))} inputMode="numeric" placeholder="如 109" className="ctl" />
+          <button className="btnH" style={btnStyle} onClick={calcChanggui}>查询</button>
           {cgRes && <div style={resStyle}>{cgRes}</div>}
         </div>
 
@@ -466,15 +463,16 @@ function CalcView() {
         <div style={cardStyle}>
           <div style={titleStyle}>修炼计算</div>
           <label style={labelStyle}>类型</label>
-          <select value={xlType} onChange={e => setXlType(e.target.value)} className="ctl" style={{ marginBottom: 12 }}>
+          <select value={xlType} onChange={e => setXlType(e.target.value)} className="ctl" style={{ marginBottom: 14 }}>
             {XIULIAN_TYPES.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
           </select>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <input value={xlFrom} onChange={e => setXlFrom(numOnly(e.target.value))} inputMode="numeric" placeholder="目前修炼等级" className="ctl" />
-            <span style={{ color: '#a89878' }}>→</span>
-            <input value={xlTo} onChange={e => setXlTo(numOnly(e.target.value))} inputMode="numeric" placeholder="目标修炼等级" className="ctl" />
-            <button className="btnH" style={btnStyle} onClick={calcXiulian}>查询</button>
+          <label style={labelStyle}>修炼等级范围（0-25）</label>
+          <div style={rowStyle}>
+            <input value={xlFrom} onChange={e => setXlFrom(numOnly(e.target.value))} inputMode="numeric" placeholder="目前等级" className="ctl" />
+            <span style={{ color: '#a89878', flexShrink: 0 }}>→</span>
+            <input value={xlTo} onChange={e => setXlTo(numOnly(e.target.value))} inputMode="numeric" placeholder="目标等级" className="ctl" />
           </div>
+          <button className="btnH" style={btnStyle} onClick={calcXiulian}>查询</button>
           {xlRes && <div style={resStyle}>{xlRes.map((t, i) => <div key={i}>{t}</div>)}</div>}
         </div>
 
@@ -482,12 +480,12 @@ function CalcView() {
         <div style={cardStyle}>
           <div style={titleStyle}>师门技能计算</div>
           <label style={labelStyle}>技能等级范围（0-180）</label>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div style={rowStyle}>
             <input value={smFrom} onChange={e => setSmFrom(numOnly(e.target.value))} inputMode="numeric" placeholder="当前等级" className="ctl" />
-            <span style={{ color: '#a89878' }}>→</span>
+            <span style={{ color: '#a89878', flexShrink: 0 }}>→</span>
             <input value={smTo} onChange={e => setSmTo(numOnly(e.target.value))} inputMode="numeric" placeholder="到达等级" className="ctl" />
-            <button className="btnH" style={btnStyle} onClick={calcShimen}>查询</button>
           </div>
+          <button className="btnH" style={btnStyle} onClick={calcShimen}>查询</button>
           {smRes && <div style={resStyle}>{smRes.map((t, i) => <div key={i}>{t}</div>)}</div>}
         </div>
 
@@ -495,15 +493,16 @@ function CalcView() {
         <div style={cardStyle}>
           <div style={titleStyle}>帮派技能计算</div>
           <label style={labelStyle}>技能</label>
-          <select value={bpIdx} onChange={e => { setBpIdx(Number(e.target.value)); setBpRes(null) }} className="ctl" style={{ marginBottom: 12 }}>
+          <select value={bpIdx} onChange={e => { setBpIdx(Number(e.target.value)); setBpRes(null) }} className="ctl" style={{ marginBottom: 14 }}>
             {BANGPAI_SKILLS.map(([, name, cap], i) => <option key={i} value={i}>{name}（上限 {cap}）</option>)}
           </select>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <label style={labelStyle}>技能等级范围</label>
+          <div style={rowStyle}>
             <input value={bpFrom} onChange={e => setBpFrom(numOnly(e.target.value))} inputMode="numeric" placeholder="目前等级" className="ctl" />
-            <span style={{ color: '#a89878' }}>→</span>
+            <span style={{ color: '#a89878', flexShrink: 0 }}>→</span>
             <input value={bpTo} onChange={e => setBpTo(numOnly(e.target.value))} inputMode="numeric" placeholder="目标等级" className="ctl" />
-            <button className="btnH" style={btnStyle} onClick={calcBangpai}>查询</button>
           </div>
+          <button className="btnH" style={btnStyle} onClick={calcBangpai}>查询</button>
           {bpRes && <div style={resStyle}>{bpRes.map((t, i) => <div key={i}>{t}</div>)}</div>}
         </div>
       </div>
