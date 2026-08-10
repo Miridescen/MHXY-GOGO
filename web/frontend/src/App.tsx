@@ -389,7 +389,7 @@ function CalcView() {
       `总经验：${fmtNum(exp)}`,
       `人物等级要求：${Math.max(b * 5 + 20, 65)}`,
       `要跑100环数量：${fmtNum(Math.ceil(exp / 760))}`,
-      `需要修炼果数量：${fmtNum(Math.ceil(exp / 5))}`,
+      `需要修炼果数量：${fmtNum(Math.ceil(exp / 150))}`,
     ])
   }
 
