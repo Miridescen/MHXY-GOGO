@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Routes, Route, NavLink, useLocation, useNavigate, Link } from 'react-router-dom'
+import { EXP_TABLE, XIULIAN, XIULIAN_TYPES, type XlStep } from './calcData'
 import { fetchOverview, fmt, serveridOf, serverCell, addCatchLog, fetchCatchLogs, startCatchTask, endCatchTask, fetchCatchTasks, fetchCatchStats, fetchScenePets, fetchGoods, fetchGoodsPrices, saveGoodsPrices, addCustomGood, deleteCustomGood, addGoodsCategory, deleteGoodsCategory, authLogin, authRegisterEmail, sendEmailCode, authMe, authLogout, CHANNEL_LABEL, type AuthUser, type Overview, type Item, type Region, type Roles, type RoleCell, type Equip, type EquipGroup, type CatchLog, type CatchTask, type CatchStat, type SceneGroup, type GoodsCategory } from './api'
 
 const CBG = 'https://xyq.cbg.163.com/'
@@ -311,6 +312,136 @@ function AuthView({ mode, onAuth }: { mode: 'login' | 'register'; onAuth: (u: Au
           {isLogin
             ? <>没有账号？<Link to="/register" style={{ color: '#c1452e', fontWeight: 700 }}>去注册</Link></>
             : <>已有账号？<Link to="/login" style={{ color: '#c1452e', fontWeight: 700 }}>去登录</Link></>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// 计算器：经验换算 / 常规计算 / 修炼计算（数据与算法迁自官方梦幻工具箱，纯前端本地计算）
+function CalcView() {
+  const fmtNum = (n: number) => n.toLocaleString('en-US')
+  const fmtBig = (n: number) => {
+    if (n >= 1e8) return `${fmtNum(n)}（约 ${(n / 1e8).toFixed(2)} 亿）`
+    if (n >= 1e4) return `${fmtNum(n)}（约 ${(n / 1e4).toFixed(1)} 万）`
+    return fmtNum(n)
+  }
+  const numOnly = (v: string) => v.replace(/\D/g, '').slice(0, 12)
+  const labelStyle: CSSProperties = { fontSize: 13, fontWeight: 700, color: '#5a4a34', marginBottom: 6, display: 'block' }
+  const cardStyle: CSSProperties = { flex: '1 1 300px', minWidth: 280, maxWidth: 420, background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 14, padding: 20, alignSelf: 'flex-start' }
+  const titleStyle: CSSProperties = { fontSize: 15, fontWeight: 800, color: '#c1452e', borderLeft: '3px solid #c1452e', paddingLeft: 10, marginBottom: 14 }
+  const resStyle: CSSProperties = { fontSize: 13, color: '#3a3226', background: '#fff', border: '1px solid #e6dac4', borderRadius: 9, padding: '10px 12px', marginTop: 12, lineHeight: 1.9 }
+  const btnStyle: CSSProperties = { padding: '10px 24px', fontSize: 13.5, fontWeight: 800, color: '#fff', background: '#c1452e', border: 'none', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }
+
+  // 工具1: 经验换算
+  const [lvFrom, setLvFrom] = useState(''); const [lvTo, setLvTo] = useState('')
+  const [lvRes, setLvRes] = useState<string | null>(null)
+  const calcLvToExp = () => {
+    const a = Number(lvFrom), b = Number(lvTo)
+    if (lvFrom === '' || a < 0 || a > 175) { setLvRes('当前等级输入有误，范围 0-175'); return }
+    if (lvTo === '' || b < 0 || b > 175) { setLvRes('目标等级输入有误，范围 0-175'); return }
+    if (a >= b) { setLvRes('目标等级需大于当前等级'); return }
+    let s = 0
+    for (let i = a; i < b; i++) s += EXP_TABLE[i]
+    setLvRes(`需要经验：${fmtBig(s)}`)
+  }
+  const [expVal, setExpVal] = useState(''); const [expLv, setExpLv] = useState('')
+  const [expRes, setExpRes] = useState<string | null>(null)
+  const calcExpToLv = () => {
+    const e = Number(expVal), l = Number(expLv)
+    if (expVal === '') { setExpRes('当前经验输入有误'); return }
+    if (expLv === '' || l < 1 || l > 175) { setExpRes('当前等级输入有误，范围 1-175'); return }
+    let lv = l, rem = e
+    while (lv < 175 && rem >= EXP_TABLE[lv]) { rem -= EXP_TABLE[lv]; lv++ }
+    setExpRes(`可达等级：${lv}　剩余经验：${fmtBig(rem)}`)
+  }
+
+  // 工具2: 常规计算（官方公式）
+  const [cgLv, setCgLv] = useState('')
+  const [cgRes, setCgRes] = useState<string | null>(null)
+  const calcChanggui = () => {
+    const lv = Number(cgLv)
+    if (cgLv === '' || lv > 175) { setCgRes('人物等级输入有误'); return }
+    let skill: number | string = Math.trunc(lv - lv / 5 - 10)
+    skill = (lv > 19 ? skill : 0) <= 0 ? '无' : skill
+    const money = Math.min(lv * lv * 2000 + 10000, 30000000)
+    setCgRes(`人物技能要求：${skill}　携带金钱上限：${fmtBig(money)}`)
+  }
+
+  // 工具3: 修炼计算
+  const [xlType, setXlType] = useState<string>('1')
+  const [xlFrom, setXlFrom] = useState(''); const [xlTo, setXlTo] = useState('')
+  const [xlRes, setXlRes] = useState<string[] | null>(null)
+  const calcXiulian = () => {
+    const a = Number(xlFrom), b = Number(xlTo)
+    if (xlFrom === '' || a < 0 || a > 25) { setXlRes(['目前修炼等级输入有误，范围 0-25']); return }
+    if (xlTo === '' || b < 0 || b > 25) { setXlRes(['目标修炼等级输入有误，范围 0-25']); return }
+    if (a >= b) { setXlRes(['目标修炼等级需大于目前等级']); return }
+    const steps = XIULIAN[xlType].slice(a, b)
+    const sum = (f: (s: XlStep) => number) => steps.reduce((acc, s) => acc + f(s), 0)
+    const mx = (f: (s: XlStep) => number) => Math.max(...steps.map(f))
+    setXlRes([
+      `所需修炼经验：${fmtNum(sum(s => s.exp))}`,
+      `角色等级要求：${mx(s => s.min_grade)}`,
+      `需要达到帮贡：${fmtNum(mx(s => s.bg))}`,
+      `消耗资财：${fmtNum(sum(s => s.zc))}`,
+      `消耗金钱：${fmtNum(sum(s => s.cash) / 10000)} 万`,
+    ])
+  }
+
+  return (
+    <div>
+      <div style={{ fontSize: 12, color: '#a89878', marginBottom: 16 }}>数据与算法迁自官方梦幻工具箱，本地即时计算</div>
+      <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+        {/* 经验换算 */}
+        <div style={cardStyle}>
+          <div style={titleStyle}>经验换算</div>
+          <div style={{ marginBottom: 12 }}>
+            <label style={labelStyle}>等级换算经验</label>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input value={lvFrom} onChange={e => setLvFrom(numOnly(e.target.value))} inputMode="numeric" placeholder="当前等级" className="ctl" />
+              <span style={{ color: '#a89878' }}>→</span>
+              <input value={lvTo} onChange={e => setLvTo(numOnly(e.target.value))} inputMode="numeric" placeholder="目标等级" className="ctl" />
+              <button className="btnH" style={btnStyle} onClick={calcLvToExp}>查询</button>
+            </div>
+            {lvRes && <div style={resStyle}>{lvRes}</div>}
+          </div>
+          <div>
+            <label style={labelStyle}>经验换算等级</label>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input value={expVal} onChange={e => setExpVal(numOnly(e.target.value))} inputMode="numeric" placeholder="当前经验" className="ctl" />
+              <input value={expLv} onChange={e => setExpLv(numOnly(e.target.value))} inputMode="numeric" placeholder="当前等级" className="ctl" style={{ width: 110, flexShrink: 0 }} />
+              <button className="btnH" style={btnStyle} onClick={calcExpToLv}>查询</button>
+            </div>
+            {expRes && <div style={resStyle}>{expRes}</div>}
+          </div>
+        </div>
+
+        {/* 常规计算 */}
+        <div style={cardStyle}>
+          <div style={titleStyle}>常规计算</div>
+          <label style={labelStyle}>人物等级</label>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input value={cgLv} onChange={e => setCgLv(numOnly(e.target.value))} inputMode="numeric" placeholder="0-175" className="ctl" />
+            <button className="btnH" style={btnStyle} onClick={calcChanggui}>查询</button>
+          </div>
+          {cgRes && <div style={resStyle}>{cgRes}</div>}
+        </div>
+
+        {/* 修炼计算 */}
+        <div style={cardStyle}>
+          <div style={titleStyle}>修炼计算</div>
+          <label style={labelStyle}>类型</label>
+          <select value={xlType} onChange={e => setXlType(e.target.value)} className="ctl" style={{ marginBottom: 12 }}>
+            {XIULIAN_TYPES.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+          </select>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input value={xlFrom} onChange={e => setXlFrom(numOnly(e.target.value))} inputMode="numeric" placeholder="目前修炼等级" className="ctl" />
+            <span style={{ color: '#a89878' }}>→</span>
+            <input value={xlTo} onChange={e => setXlTo(numOnly(e.target.value))} inputMode="numeric" placeholder="目标修炼等级" className="ctl" />
+            <button className="btnH" style={btnStyle} onClick={calcXiulian}>查询</button>
+          </div>
+          {xlRes && <div style={resStyle}>{xlRes.map((t, i) => <div key={i}>{t}</div>)}</div>}
         </div>
       </div>
     </div>
@@ -847,7 +978,7 @@ export default function App() {
           </div>
           {/* 顶部导航（路由切换页面） */}
           <nav style={{ display: 'flex', gap: 4, marginLeft: 10 }}>
-            {([['/', '比价'], ['/catch', '场景记录'], ['/goods', '物品价格']] as const).map(([to, label]) => (
+            {([['/', '比价'], ['/catch', '场景记录'], ['/goods', '物品价格'], ['/calc', '计算器']] as const).map(([to, label]) => (
               <NavLink key={to} to={to} end
                 style={({ isActive }) => ({ padding: '8px 15px', fontSize: 14, fontWeight: 800, textDecoration: 'none', borderRadius: 8, color: isActive ? '#fff' : '#8a7a5c', background: isActive ? '#c1452e' : 'transparent' })}>{label}</NavLink>
             ))}
@@ -1026,6 +1157,7 @@ export default function App() {
               </div>
             )
           } />
+          <Route path="/calc" element={<CalcView />} />
           <Route path="/login" element={<AuthView mode="login" onAuth={setUser} />} />
           <Route path="/register" element={<AuthView mode="register" onAuth={setUser} />} />
         </Routes>
