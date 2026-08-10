@@ -1,0 +1,124 @@
+import { View, Text, Input, Picker } from '@tarojs/components'
+import { useState } from 'react'
+import { EXP_TABLE, XIULIAN, XIULIAN_TYPES, type XlStep } from '../../utils/calcData'
+import './index.scss'
+
+const fmtNum = (n: number) => n.toLocaleString('en-US')
+const fmtBig = (n: number) => {
+  if (n >= 1e8) return `${fmtNum(n)}（约 ${(n / 1e8).toFixed(2)} 亿）`
+  if (n >= 1e4) return `${fmtNum(n)}（约 ${(n / 1e4).toFixed(1)} 万）`
+  return fmtNum(n)
+}
+const numOnly = (v: string) => v.replace(/\D/g, '').slice(0, 12)
+
+export default function CalcPage() {
+  // 工具1: 经验换算
+  const [lvFrom, setLvFrom] = useState(''); const [lvTo, setLvTo] = useState('')
+  const [lvRes, setLvRes] = useState<string | null>(null)
+  const calcLvToExp = () => {
+    const a = Number(lvFrom), b = Number(lvTo)
+    if (lvFrom === '' || a < 0 || a > 175) { setLvRes('当前等级输入有误，范围 0-175'); return }
+    if (lvTo === '' || b < 0 || b > 175) { setLvRes('目标等级输入有误，范围 0-175'); return }
+    if (a >= b) { setLvRes('目标等级需大于当前等级'); return }
+    let s = 0
+    for (let i = a; i < b; i++) s += EXP_TABLE[i]
+    setLvRes(`需要经验：${fmtBig(s)}`)
+  }
+  const [expVal, setExpVal] = useState(''); const [expLv, setExpLv] = useState('')
+  const [expRes, setExpRes] = useState<string | null>(null)
+  const calcExpToLv = () => {
+    const e = Number(expVal), l = Number(expLv)
+    if (expVal === '') { setExpRes('当前经验输入有误'); return }
+    if (expLv === '' || l < 1 || l > 175) { setExpRes('当前等级输入有误，范围 1-175'); return }
+    let lv = l, rem = e
+    while (lv < 175 && rem >= EXP_TABLE[lv]) { rem -= EXP_TABLE[lv]; lv++ }
+    setExpRes(`可达等级：${lv}　剩余经验：${fmtBig(rem)}`)
+  }
+
+  // 工具2: 常规计算（官方公式）
+  const [cgLv, setCgLv] = useState('')
+  const [cgRes, setCgRes] = useState<string | null>(null)
+  const calcChanggui = () => {
+    const lv = Number(cgLv)
+    if (cgLv === '' || lv > 175) { setCgRes('人物等级输入有误'); return }
+    let skill: number | string = Math.trunc(lv - lv / 5 - 10)
+    skill = (lv > 19 ? skill : 0) <= 0 ? '无' : skill
+    const money = Math.min(lv * lv * 2000 + 10000, 30000000)
+    setCgRes(`人物技能要求：${skill}\n携带金钱上限：${fmtBig(money)}`)
+  }
+
+  // 工具3: 修炼计算
+  const [xlTypeIdx, setXlTypeIdx] = useState(0)
+  const [xlFrom, setXlFrom] = useState(''); const [xlTo, setXlTo] = useState('')
+  const [xlRes, setXlRes] = useState<string | null>(null)
+  const calcXiulian = () => {
+    const a = Number(xlFrom), b = Number(xlTo)
+    if (xlFrom === '' || a < 0 || a > 25) { setXlRes('目前修炼等级输入有误，范围 0-25'); return }
+    if (xlTo === '' || b < 0 || b > 25) { setXlRes('目标修炼等级输入有误，范围 0-25'); return }
+    if (a >= b) { setXlRes('目标修炼等级需大于目前等级'); return }
+    const steps = XIULIAN[XIULIAN_TYPES[xlTypeIdx][0]].slice(a, b)
+    const sum = (f: (s: XlStep) => number) => steps.reduce((acc, s) => acc + f(s), 0)
+    const mx = (f: (s: XlStep) => number) => Math.max(...steps.map(f))
+    setXlRes([
+      `所需修炼经验：${fmtNum(sum(s => s.exp))}`,
+      `角色等级要求：${mx(s => s.min_grade)}`,
+      `需要达到帮贡：${fmtNum(mx(s => s.bg))}`,
+      `消耗资财：${fmtNum(sum(s => s.zc))}`,
+      `消耗金钱：${fmtNum(sum(s => s.cash) / 10000)} 万`,
+    ].join('\n'))
+  }
+
+  return (
+    <View className='page'>
+      <View className='tip'>数据与算法迁自官方梦幻工具箱，本地即时计算</View>
+
+      {/* 经验换算 */}
+      <View className='cardBox'>
+        <View className='cardTitle'>经验换算</View>
+        <View className='fLabel'>等级换算经验</View>
+        <View className='row'>
+          <Input className='numInput' type='number' placeholder='当前等级' value={lvFrom} onInput={e => setLvFrom(numOnly(e.detail.value))} />
+          <Text className='arrow'>→</Text>
+          <Input className='numInput' type='number' placeholder='目标等级' value={lvTo} onInput={e => setLvTo(numOnly(e.detail.value))} />
+          <View className='qBtn' onClick={calcLvToExp}>查询</View>
+        </View>
+        {lvRes && <View className='resBox'>{lvRes}</View>}
+        <View className='fLabel'>经验换算等级</View>
+        <View className='row'>
+          <Input className='numInput' type='number' placeholder='当前经验' value={expVal} onInput={e => setExpVal(numOnly(e.detail.value))} />
+          <Input className='numInput short' type='number' placeholder='当前等级' value={expLv} onInput={e => setExpLv(numOnly(e.detail.value))} />
+          <View className='qBtn' onClick={calcExpToLv}>查询</View>
+        </View>
+        {expRes && <View className='resBox'>{expRes}</View>}
+      </View>
+
+      {/* 常规计算 */}
+      <View className='cardBox'>
+        <View className='cardTitle'>常规计算</View>
+        <View className='fLabel'>人物等级</View>
+        <View className='row'>
+          <Input className='numInput' type='number' placeholder='0-175' value={cgLv} onInput={e => setCgLv(numOnly(e.detail.value))} />
+          <View className='qBtn' onClick={calcChanggui}>查询</View>
+        </View>
+        {cgRes && <View className='resBox'>{cgRes}</View>}
+      </View>
+
+      {/* 修炼计算 */}
+      <View className='cardBox'>
+        <View className='cardTitle'>修炼计算</View>
+        <View className='fLabel'>类型</View>
+        <Picker mode='selector' range={XIULIAN_TYPES.map(t => t[1])} value={xlTypeIdx} onChange={e => setXlTypeIdx(Number(e.detail.value))}>
+          <View className='pickerBox'>{XIULIAN_TYPES[xlTypeIdx][1]} <Text className='caret'>▾</Text></View>
+        </Picker>
+        <View className='fLabel'>修炼等级范围</View>
+        <View className='row'>
+          <Input className='numInput' type='number' placeholder='目前(0-25)' value={xlFrom} onInput={e => setXlFrom(numOnly(e.detail.value))} />
+          <Text className='arrow'>→</Text>
+          <Input className='numInput' type='number' placeholder='目标(0-25)' value={xlTo} onInput={e => setXlTo(numOnly(e.detail.value))} />
+          <View className='qBtn' onClick={calcXiulian}>查询</View>
+        </View>
+        {xlRes && <View className='resBox'>{xlRes}</View>}
+      </View>
+    </View>
+  )
+}

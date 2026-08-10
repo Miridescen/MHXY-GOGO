@@ -1,0 +1,20 @@
+.page { padding: 24px 24px 60px; }
+
+.tip { font-size: 21px; color: #a89878; margin-bottom: 20px; }
+
+.cardBox { background: #fdfaf3; border: 1px solid #ece2cf; border-radius: 22px; padding: 28px; margin-bottom: 26px; }
+.cardTitle { font-size: 30px; font-weight: 900; color: #c1452e; border-left: 6px solid #c1452e; padding-left: 18px; letter-spacing: 2px; margin-bottom: 8px; }
+
+.fLabel { font-size: 24px; font-weight: 700; color: #5a4a34; margin: 22px 0 12px; }
+
+.row { display: flex; gap: 12px; align-items: center; }
+.numInput { flex: 1; min-width: 0; background: #fff; border: 1px solid #e2d6bf; border-radius: 14px; padding: 16px 18px; font-size: 24px; color: #2a221a; height: auto; }
+.numInput.short { flex: 0 0 180px; }
+.arrow { color: #a89878; font-size: 24px; flex-shrink: 0; }
+.qBtn { flex-shrink: 0; padding: 16px 26px; font-size: 24px; font-weight: 800; color: #fff; background: #c1452e; border-radius: 12px; }
+.qBtn:active { opacity: .85; }
+
+.pickerBox { background: #fff; border: 1px solid #e2d6bf; border-radius: 14px; padding: 18px 20px; font-size: 25px; color: #2a221a; }
+.caret { color: #c1452e; float: right; }
+
+.resBox { margin-top: 16px; background: #fff; border: 1px solid #e6dac4; border-radius: 12px; padding: 16px 20px; font-size: 23px; color: #3a3226; line-height: 1.9; white-space: pre-line; }
