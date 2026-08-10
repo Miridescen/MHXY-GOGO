@@ -389,6 +389,7 @@ function CalcView() {
       `总经验：${fmtNum(exp)}`,
       `人物等级要求：${Math.max(b * 5 + 20, 65)}`,
       `要跑100环数量：${fmtNum(Math.ceil(exp / 760))}`,
+      `需要修炼果数量：${fmtNum(Math.ceil(exp / 5))}`,
     ])
   }
 
@@ -400,9 +401,9 @@ function CalcView() {
     if (psFrom === '' || a < 1 || a > 180) { setPsRes(['当前等级输入有误，范围 1-180']); return }
     if (psTo === '' || b < 1 || b > 180) { setPsRes(['目标等级输入有误，范围 1-180']); return }
     if (a >= b) { setPsRes(['目标等级需大于当前等级']); return }
-    let exp = 0, yhl = 0
-    for (let i = a; i < b; i++) { const e = petExpStep(i); exp += e; yhl += e / (1000 * i + 1000) }
-    setPsRes([`需要经验：${fmtBig(exp)}`, `需要月华露：${fmtNum(Math.ceil(yhl))}`])
+    let exp = 0
+    for (let i = a; i < b; i++) exp += petExpStep(i)
+    setPsRes([`需要经验：${fmtBig(exp)}`])
   }
 
   // 工具4: 师门技能计算
