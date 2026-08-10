@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Routes, Route, NavLink, useLocation, useNavigate, Link } from 'react-router-dom'
-import { EXP_TABLE, XIULIAN, XIULIAN_TYPES, type XlStep } from './calcData'
+import { EXP_TABLE, XIULIAN, XIULIAN_TYPES, SHIMEN, BANGPAI, BANGPAI_SKILLS, type XlStep } from './calcData'
 import { fetchOverview, fmt, serveridOf, serverCell, addCatchLog, fetchCatchLogs, startCatchTask, endCatchTask, fetchCatchTasks, fetchCatchStats, fetchScenePets, fetchGoods, fetchGoodsPrices, saveGoodsPrices, addCustomGood, deleteCustomGood, addGoodsCategory, deleteGoodsCategory, authLogin, authRegisterEmail, sendEmailCode, authMe, authLogout, CHANNEL_LABEL, type AuthUser, type Overview, type Item, type Region, type Roles, type RoleCell, type Equip, type EquipGroup, type CatchLog, type CatchTask, type CatchStat, type SceneGroup, type GoodsCategory } from './api'
 
 const CBG = 'https://xyq.cbg.163.com/'
@@ -368,6 +368,40 @@ function CalcView() {
     setCgRes(`人物技能要求：${skill}　携带金钱上限：${fmtBig(money)}`)
   }
 
+  // 工具4: 师门技能计算
+  const [smFrom, setSmFrom] = useState(''); const [smTo, setSmTo] = useState('')
+  const [smRes, setSmRes] = useState<string[] | null>(null)
+  const calcShimen = () => {
+    const a = Number(smFrom), b = Number(smTo)
+    if (smFrom === '' || a < 0 || a > 180) { setSmRes(['当前等级输入有误，范围 0-180']); return }
+    if (smTo === '' || b < 0 || b > 180) { setSmRes(['到达等级输入有误，范围 0-180']); return }
+    if (a >= b) { setSmRes(['到达等级需大于当前等级']); return }
+    const steps = SHIMEN.slice(a, b)
+    setSmRes([
+      `所需经验：${fmtBig(steps.reduce((s, x) => s + x[0], 0))}`,
+      `所需金钱：${fmtBig(steps.reduce((s, x) => s + x[1], 0))}`,
+    ])
+  }
+
+  // 工具5: 帮派技能计算
+  const [bpIdx, setBpIdx] = useState(0)
+  const [bpFrom, setBpFrom] = useState(''); const [bpTo, setBpTo] = useState('')
+  const [bpRes, setBpRes] = useState<string[] | null>(null)
+  const calcBangpai = () => {
+    const [sid, , cap] = BANGPAI_SKILLS[bpIdx]
+    const a = Number(bpFrom), b = Number(bpTo)
+    if (bpFrom === '' || a < 0 || a > cap) { setBpRes([`目前等级输入有误，范围 0-${cap}`]); return }
+    if (bpTo === '' || b < 0 || b > cap) { setBpRes([`目标等级输入有误，范围 0-${cap}`]); return }
+    if (a >= b) { setBpRes(['目标等级需大于目前等级']); return }
+    const steps = BANGPAI[sid].slice(a, b)
+    setBpRes([
+      `消耗经验：${fmtBig(steps.reduce((s, x) => s + x[0], 0))}`,
+      `消耗金钱：${fmtBig(steps.reduce((s, x) => s + x[1], 0))}`,
+      `需要达到帮贡：${fmtNum(5 * b)}`,
+      `消耗帮贡：${fmtNum((a + 1 + b) * (b - a) / 2)}`,
+    ])
+  }
+
   // 工具3: 修炼计算
   const [xlType, setXlType] = useState<string>('1')
   const [xlFrom, setXlFrom] = useState(''); const [xlTo, setXlTo] = useState('')
@@ -442,6 +476,35 @@ function CalcView() {
             <button className="btnH" style={btnStyle} onClick={calcXiulian}>查询</button>
           </div>
           {xlRes && <div style={resStyle}>{xlRes.map((t, i) => <div key={i}>{t}</div>)}</div>}
+        </div>
+
+        {/* 师门技能计算 */}
+        <div style={cardStyle}>
+          <div style={titleStyle}>师门技能计算</div>
+          <label style={labelStyle}>技能等级范围（0-180）</label>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input value={smFrom} onChange={e => setSmFrom(numOnly(e.target.value))} inputMode="numeric" placeholder="当前等级" className="ctl" />
+            <span style={{ color: '#a89878' }}>→</span>
+            <input value={smTo} onChange={e => setSmTo(numOnly(e.target.value))} inputMode="numeric" placeholder="到达等级" className="ctl" />
+            <button className="btnH" style={btnStyle} onClick={calcShimen}>查询</button>
+          </div>
+          {smRes && <div style={resStyle}>{smRes.map((t, i) => <div key={i}>{t}</div>)}</div>}
+        </div>
+
+        {/* 帮派技能计算 */}
+        <div style={cardStyle}>
+          <div style={titleStyle}>帮派技能计算</div>
+          <label style={labelStyle}>技能</label>
+          <select value={bpIdx} onChange={e => { setBpIdx(Number(e.target.value)); setBpRes(null) }} className="ctl" style={{ marginBottom: 12 }}>
+            {BANGPAI_SKILLS.map(([, name, cap], i) => <option key={i} value={i}>{name}（上限 {cap}）</option>)}
+          </select>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input value={bpFrom} onChange={e => setBpFrom(numOnly(e.target.value))} inputMode="numeric" placeholder="目前等级" className="ctl" />
+            <span style={{ color: '#a89878' }}>→</span>
+            <input value={bpTo} onChange={e => setBpTo(numOnly(e.target.value))} inputMode="numeric" placeholder="目标等级" className="ctl" />
+            <button className="btnH" style={btnStyle} onClick={calcBangpai}>查询</button>
+          </div>
+          {bpRes && <div style={resStyle}>{bpRes.map((t, i) => <div key={i}>{t}</div>)}</div>}
         </div>
       </div>
     </div>

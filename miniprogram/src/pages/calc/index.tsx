@@ -1,6 +1,6 @@
 import { View, Text, Input, Picker } from '@tarojs/components'
 import { useState } from 'react'
-import { EXP_TABLE, XIULIAN, XIULIAN_TYPES, type XlStep } from '../../utils/calcData'
+import { EXP_TABLE, XIULIAN, XIULIAN_TYPES, SHIMEN, BANGPAI, BANGPAI_SKILLS, type XlStep } from '../../utils/calcData'
 import './index.scss'
 
 const fmtNum = (n: number) => n.toLocaleString('en-US')
@@ -68,6 +68,40 @@ export default function CalcPage() {
     ].join('\n'))
   }
 
+  // 工具4: 师门技能计算
+  const [smFrom, setSmFrom] = useState(''); const [smTo, setSmTo] = useState('')
+  const [smRes, setSmRes] = useState<string | null>(null)
+  const calcShimen = () => {
+    const a = Number(smFrom), b = Number(smTo)
+    if (smFrom === '' || a < 0 || a > 180) { setSmRes('当前等级输入有误，范围 0-180'); return }
+    if (smTo === '' || b < 0 || b > 180) { setSmRes('到达等级输入有误，范围 0-180'); return }
+    if (a >= b) { setSmRes('到达等级需大于当前等级'); return }
+    const steps = SHIMEN.slice(a, b)
+    setSmRes([
+      `所需经验：${fmtBig(steps.reduce((s, x) => s + x[0], 0))}`,
+      `所需金钱：${fmtBig(steps.reduce((s, x) => s + x[1], 0))}`,
+    ].join('\n'))
+  }
+
+  // 工具5: 帮派技能计算
+  const [bpIdx, setBpIdx] = useState(0)
+  const [bpFrom, setBpFrom] = useState(''); const [bpTo, setBpTo] = useState('')
+  const [bpRes, setBpRes] = useState<string | null>(null)
+  const calcBangpai = () => {
+    const [sid, , cap] = BANGPAI_SKILLS[bpIdx]
+    const a = Number(bpFrom), b = Number(bpTo)
+    if (bpFrom === '' || a < 0 || a > cap) { setBpRes(`目前等级输入有误，范围 0-${cap}`); return }
+    if (bpTo === '' || b < 0 || b > cap) { setBpRes(`目标等级输入有误，范围 0-${cap}`); return }
+    if (a >= b) { setBpRes('目标等级需大于目前等级'); return }
+    const steps = BANGPAI[sid].slice(a, b)
+    setBpRes([
+      `消耗经验：${fmtBig(steps.reduce((s, x) => s + x[0], 0))}`,
+      `消耗金钱：${fmtBig(steps.reduce((s, x) => s + x[1], 0))}`,
+      `需要达到帮贡：${fmtNum(5 * b)}`,
+      `消耗帮贡：${fmtNum((a + 1 + b) * (b - a) / 2)}`,
+    ].join('\n'))
+  }
+
   return (
     <View className='page'>
       <View className='tip'>数据与算法迁自官方梦幻工具箱，本地即时计算</View>
@@ -118,6 +152,37 @@ export default function CalcPage() {
           <View className='qBtn' onClick={calcXiulian}>查询</View>
         </View>
         {xlRes && <View className='resBox'>{xlRes}</View>}
+      </View>
+
+      {/* 师门技能计算 */}
+      <View className='cardBox'>
+        <View className='cardTitle'>师门技能计算</View>
+        <View className='fLabel'>技能等级范围（0-180）</View>
+        <View className='row'>
+          <Input className='numInput' type='number' placeholder='当前等级' value={smFrom} onInput={e => setSmFrom(numOnly(e.detail.value))} />
+          <Text className='arrow'>→</Text>
+          <Input className='numInput' type='number' placeholder='到达等级' value={smTo} onInput={e => setSmTo(numOnly(e.detail.value))} />
+          <View className='qBtn' onClick={calcShimen}>查询</View>
+        </View>
+        {smRes && <View className='resBox'>{smRes}</View>}
+      </View>
+
+      {/* 帮派技能计算 */}
+      <View className='cardBox'>
+        <View className='cardTitle'>帮派技能计算</View>
+        <View className='fLabel'>技能</View>
+        <Picker mode='selector' range={BANGPAI_SKILLS.map(s => `${s[1]}（上限 ${s[2]}）`)} value={bpIdx}
+          onChange={e => { setBpIdx(Number(e.detail.value)); setBpRes(null) }}>
+          <View className='pickerBox'>{BANGPAI_SKILLS[bpIdx][1]}（上限 {BANGPAI_SKILLS[bpIdx][2]}） <Text className='caret'>▾</Text></View>
+        </Picker>
+        <View className='fLabel'>技能等级范围</View>
+        <View className='row'>
+          <Input className='numInput' type='number' placeholder='目前等级' value={bpFrom} onInput={e => setBpFrom(numOnly(e.detail.value))} />
+          <Text className='arrow'>→</Text>
+          <Input className='numInput' type='number' placeholder='目标等级' value={bpTo} onInput={e => setBpTo(numOnly(e.detail.value))} />
+          <View className='qBtn' onClick={calcBangpai}>查询</View>
+        </View>
+        {bpRes && <View className='resBox'>{bpRes}</View>}
       </View>
     </View>
   )
