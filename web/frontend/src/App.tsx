@@ -327,8 +327,15 @@ function CalcView() {
     return fmtNum(n)
   }
   const numOnly = (v: string) => v.replace(/\D/g, '').slice(0, 12)
+  // 左侧功能菜单
+  const CALC_MENU = [
+    { group: '角色', items: [['exp', '经验换算'], ['changgui', '常规计算'], ['xiulian', '修炼计算']] },
+    { group: '技能', items: [['shimen', '师门技能计算'], ['bangpai', '帮派技能计算']] },
+    { group: '召唤兽', items: [['petxl', '召唤兽修炼计算'], ['petsj', '召唤兽升级计算']] },
+  ] as const
+  const [tool, setTool] = useState<string>('exp')
   const labelStyle: CSSProperties = { fontSize: 13, fontWeight: 700, color: '#5a4a34', marginBottom: 8, display: 'block' }
-  const cardStyle: CSSProperties = { background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 14, padding: 20 }
+  const cardStyle: CSSProperties = { background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 14, padding: 22, maxWidth: 560 }
   const titleStyle: CSSProperties = { fontSize: 15, fontWeight: 800, color: '#c1452e', borderLeft: '3px solid #c1452e', paddingLeft: 10, marginBottom: 16 }
   const rowStyle: CSSProperties = { display: 'flex', gap: 8, alignItems: 'center' }
   const dividerStyle: CSSProperties = { borderTop: '1px dashed #e6dac4', margin: '18px 0' }
@@ -456,9 +463,23 @@ function CalcView() {
   return (
     <div style={{ maxWidth: 1080 }}>
       <div style={{ fontSize: 12, color: '#a89878', marginBottom: 16 }}>数据与算法迁自官方梦幻工具箱，本地即时计算</div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(310px, 1fr))', gap: 18, alignItems: 'start' }}>
+      <div className="calcLayout">
+        {/* 左侧功能菜单 */}
+        <div className="calcMenu">
+          {CALC_MENU.map(g => (
+            <div key={g.group}>
+              <div className="calcGroup">{g.group}</div>
+              {g.items.map(([k, label]) => (
+                <div key={k} className={'calcMenuItem ' + (tool === k ? 'on' : '')} onClick={() => setTool(k)}>{label}</div>
+              ))}
+            </div>
+          ))}
+        </div>
+
+        {/* 右侧: 当前选中的工具 */}
+        <div className="calcBody">
         {/* 经验换算 */}
-        <div style={cardStyle}>
+        {tool === 'exp' && <div style={cardStyle}>
           <div style={titleStyle}>经验换算</div>
           <label style={labelStyle}>等级 → 需要经验</label>
           <div style={rowStyle}>
@@ -476,19 +497,19 @@ function CalcView() {
           </div>
           <button className="btnH" style={btnStyle} onClick={calcExpToLv}>查询</button>
           {expRes && <div style={resStyle}>{expRes}</div>}
-        </div>
+        </div>}
 
         {/* 常规计算 */}
-        <div style={cardStyle}>
+        {tool === 'changgui' && <div style={cardStyle}>
           <div style={titleStyle}>常规计算</div>
           <label style={labelStyle}>人物等级（0-175）</label>
           <input value={cgLv} onChange={e => setCgLv(numOnly(e.target.value))} inputMode="numeric" placeholder="如 109" className="ctl" />
           <button className="btnH" style={btnStyle} onClick={calcChanggui}>查询</button>
           {cgRes && <div style={resStyle}>{cgRes}</div>}
-        </div>
+        </div>}
 
         {/* 修炼计算 */}
-        <div style={cardStyle}>
+        {tool === 'xiulian' && <div style={cardStyle}>
           <div style={titleStyle}>修炼计算</div>
           <label style={labelStyle}>类型</label>
           <select value={xlType} onChange={e => setXlType(e.target.value)} className="ctl" style={{ marginBottom: 14 }}>
@@ -502,10 +523,10 @@ function CalcView() {
           </div>
           <button className="btnH" style={btnStyle} onClick={calcXiulian}>查询</button>
           {xlRes && <div style={resStyle}>{xlRes.map((t, i) => <div key={i}>{t}</div>)}</div>}
-        </div>
+        </div>}
 
         {/* 师门技能计算 */}
-        <div style={cardStyle}>
+        {tool === 'shimen' && <div style={cardStyle}>
           <div style={titleStyle}>师门技能计算</div>
           <label style={labelStyle}>技能等级范围（0-180）</label>
           <div style={rowStyle}>
@@ -515,10 +536,10 @@ function CalcView() {
           </div>
           <button className="btnH" style={btnStyle} onClick={calcShimen}>查询</button>
           {smRes && <div style={resStyle}>{smRes.map((t, i) => <div key={i}>{t}</div>)}</div>}
-        </div>
+        </div>}
 
         {/* 帮派技能计算 */}
-        <div style={cardStyle}>
+        {tool === 'bangpai' && <div style={cardStyle}>
           <div style={titleStyle}>帮派技能计算</div>
           <label style={labelStyle}>技能</label>
           <select value={bpIdx} onChange={e => { setBpIdx(Number(e.target.value)); setBpRes(null) }} className="ctl" style={{ marginBottom: 14 }}>
@@ -532,10 +553,10 @@ function CalcView() {
           </div>
           <button className="btnH" style={btnStyle} onClick={calcBangpai}>查询</button>
           {bpRes && <div style={resStyle}>{bpRes.map((t, i) => <div key={i}>{t}</div>)}</div>}
-        </div>
+        </div>}
 
         {/* 召唤兽修炼计算 */}
-        <div style={cardStyle}>
+        {tool === 'petxl' && <div style={cardStyle}>
           <div style={titleStyle}>召唤兽修炼计算</div>
           <label style={labelStyle}>修炼等级范围（0-25）</label>
           <div style={rowStyle}>
@@ -545,10 +566,10 @@ function CalcView() {
           </div>
           <button className="btnH" style={btnStyle} onClick={calcPetXiulian}>查询</button>
           {pxRes && <div style={resStyle}>{pxRes.map((t, i) => <div key={i}>{t}</div>)}</div>}
-        </div>
+        </div>}
 
         {/* 召唤兽升级计算 */}
-        <div style={cardStyle}>
+        {tool === 'petsj' && <div style={cardStyle}>
           <div style={titleStyle}>召唤兽升级计算</div>
           <label style={labelStyle}>召唤兽等级范围（1-180）</label>
           <div style={rowStyle}>
@@ -558,6 +579,7 @@ function CalcView() {
           </div>
           <button className="btnH" style={btnStyle} onClick={calcPetShengji}>查询</button>
           {psRes && <div style={resStyle}>{psRes.map((t, i) => <div key={i}>{t}</div>)}</div>}
+        </div>}
         </div>
       </div>
     </div>

@@ -64,3 +64,18 @@ select.ctl {
 .btnH { transition: filter .15s ease, transform .05s ease, box-shadow .15s ease; }
 .btnH:not(:disabled):hover { filter: brightness(1.05); }
 .btnH:not(:disabled):active { transform: translateY(1px); }
+
+/* ===== 计算器: 左侧功能菜单 + 右侧内容 ===== */
+.calcLayout { display: flex; gap: 20px; align-items: flex-start; }
+.calcMenu { width: 190px; flex-shrink: 0; background: #fdfaf3; border: 1px solid #ece2cf; border-radius: 14px; padding: 10px; }
+.calcGroup { font-size: 11px; font-weight: 700; color: #b0a48c; letter-spacing: 2px; padding: 12px 12px 5px; }
+.calcMenuItem { font-size: 14px; font-weight: 700; color: #5a4a34; padding: 10px 12px; border-radius: 9px; cursor: pointer; border-left: 3px solid transparent; transition: background .12s ease; }
+.calcMenuItem:hover { background: #f5ecdd; }
+.calcMenuItem.on { background: #fbeee8; color: #a8351f; border-left-color: #c1452e; }
+.calcBody { flex: 1; min-width: 0; }
+@media (max-width: 759px) {
+  .calcLayout { flex-direction: column; }
+  .calcMenu { width: 100%; box-sizing: border-box; display: flex; flex-wrap: wrap; gap: 4px; }
+  .calcGroup { display: none; }
+  .calcMenuItem { border-left: none; padding: 8px 12px; font-size: 13px; }
+}
