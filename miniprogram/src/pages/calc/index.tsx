@@ -1,6 +1,6 @@
 import { View, Text, Input, Picker } from '@tarojs/components'
 import { useState } from 'react'
-import { EXP_TABLE, XIULIAN, XIULIAN_TYPES, SHIMEN, BANGPAI, BANGPAI_SKILLS, type XlStep } from '../../utils/calcData'
+import { EXP_TABLE, XIULIAN, XIULIAN_TYPES, SHIMEN, BANGPAI, BANGPAI_SKILLS, PET_XIULIAN_CUM, petExpStep, type XlStep } from '../../utils/calcData'
 import './index.scss'
 
 const fmtNum = (n: number) => n.toLocaleString('en-US')
@@ -102,6 +102,34 @@ export default function CalcPage() {
     ].join('\n'))
   }
 
+  // 召唤兽修炼计算
+  const [pxFrom, setPxFrom] = useState(''); const [pxTo, setPxTo] = useState('')
+  const [pxRes, setPxRes] = useState<string | null>(null)
+  const calcPetXiulian = () => {
+    const a = Number(pxFrom), b = Number(pxTo)
+    if (pxFrom === '' || a < 0 || a > 25) { setPxRes('目前修炼等级输入有误，范围 0-25'); return }
+    if (pxTo === '' || b < 0 || b > 25 || b < a) { setPxRes('目标修炼等级输入有误，需不小于目前等级'); return }
+    const exp = PET_XIULIAN_CUM[b] - PET_XIULIAN_CUM[a]
+    setPxRes([
+      `总经验：${fmtNum(exp)}`,
+      `人物等级要求：${Math.max(b * 5 + 20, 65)}`,
+      `要跑100环数量：${fmtNum(Math.ceil(exp / 760))}`,
+    ].join('\n'))
+  }
+
+  // 召唤兽升级计算
+  const [psFrom, setPsFrom] = useState(''); const [psTo, setPsTo] = useState('')
+  const [psRes, setPsRes] = useState<string | null>(null)
+  const calcPetShengji = () => {
+    const a = Number(psFrom), b = Number(psTo)
+    if (psFrom === '' || a < 1 || a > 180) { setPsRes('当前等级输入有误，范围 1-180'); return }
+    if (psTo === '' || b < 1 || b > 180) { setPsRes('目标等级输入有误，范围 1-180'); return }
+    if (a >= b) { setPsRes('目标等级需大于当前等级'); return }
+    let exp = 0, yhl = 0
+    for (let i = a; i < b; i++) { const e = petExpStep(i); exp += e; yhl += e / (1000 * i + 1000) }
+    setPsRes([`需要经验：${fmtBig(exp)}`, `需要月华露：${fmtNum(Math.ceil(yhl))}`].join('\n'))
+  }
+
   return (
     <View className='page'>
       <View className='tip'>数据与算法迁自官方梦幻工具箱，本地即时计算</View>
@@ -183,6 +211,32 @@ export default function CalcPage() {
           <View className='qBtn' onClick={calcBangpai}>查询</View>
         </View>
         {bpRes && <View className='resBox'>{bpRes}</View>}
+      </View>
+
+      {/* 召唤兽修炼计算 */}
+      <View className='cardBox'>
+        <View className='cardTitle'>召唤兽修炼计算</View>
+        <View className='fLabel'>修炼等级范围（0-25）</View>
+        <View className='row'>
+          <Input className='numInput' type='number' placeholder='目前等级' value={pxFrom} onInput={e => setPxFrom(numOnly(e.detail.value))} />
+          <Text className='arrow'>→</Text>
+          <Input className='numInput' type='number' placeholder='目标等级' value={pxTo} onInput={e => setPxTo(numOnly(e.detail.value))} />
+          <View className='qBtn' onClick={calcPetXiulian}>查询</View>
+        </View>
+        {pxRes && <View className='resBox'>{pxRes}</View>}
+      </View>
+
+      {/* 召唤兽升级计算 */}
+      <View className='cardBox'>
+        <View className='cardTitle'>召唤兽升级计算</View>
+        <View className='fLabel'>召唤兽等级范围（1-180）</View>
+        <View className='row'>
+          <Input className='numInput' type='number' placeholder='当前等级' value={psFrom} onInput={e => setPsFrom(numOnly(e.detail.value))} />
+          <Text className='arrow'>→</Text>
+          <Input className='numInput' type='number' placeholder='目标等级' value={psTo} onInput={e => setPsTo(numOnly(e.detail.value))} />
+          <View className='qBtn' onClick={calcPetShengji}>查询</View>
+        </View>
+        {psRes && <View className='resBox'>{psRes}</View>}
       </View>
     </View>
   )

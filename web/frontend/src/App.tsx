@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Routes, Route, NavLink, useLocation, useNavigate, Link } from 'react-router-dom'
-import { EXP_TABLE, XIULIAN, XIULIAN_TYPES, SHIMEN, BANGPAI, BANGPAI_SKILLS, type XlStep } from './calcData'
+import { EXP_TABLE, XIULIAN, XIULIAN_TYPES, SHIMEN, BANGPAI, BANGPAI_SKILLS, PET_XIULIAN_CUM, petExpStep, type XlStep } from './calcData'
 import { fetchOverview, fmt, serveridOf, serverCell, addCatchLog, fetchCatchLogs, startCatchTask, endCatchTask, fetchCatchTasks, fetchCatchStats, fetchScenePets, fetchGoods, fetchGoodsPrices, saveGoodsPrices, addCustomGood, deleteCustomGood, addGoodsCategory, deleteGoodsCategory, authLogin, authRegisterEmail, sendEmailCode, authMe, authLogout, CHANNEL_LABEL, type AuthUser, type Overview, type Item, type Region, type Roles, type RoleCell, type Equip, type EquipGroup, type CatchLog, type CatchTask, type CatchStat, type SceneGroup, type GoodsCategory } from './api'
 
 const CBG = 'https://xyq.cbg.163.com/'
@@ -370,6 +370,34 @@ function CalcView() {
     setCgRes(`人物技能要求：${skill}　携带金钱上限：${fmtBig(money)}`)
   }
 
+  // 工具6: 召唤兽修炼计算
+  const [pxFrom, setPxFrom] = useState(''); const [pxTo, setPxTo] = useState('')
+  const [pxRes, setPxRes] = useState<string[] | null>(null)
+  const calcPetXiulian = () => {
+    const a = Number(pxFrom), b = Number(pxTo)
+    if (pxFrom === '' || a < 0 || a > 25) { setPxRes(['目前修炼等级输入有误，范围 0-25']); return }
+    if (pxTo === '' || b < 0 || b > 25 || b < a) { setPxRes(['目标修炼等级输入有误，需不小于目前等级']); return }
+    const exp = PET_XIULIAN_CUM[b] - PET_XIULIAN_CUM[a]
+    setPxRes([
+      `总经验：${fmtNum(exp)}`,
+      `人物等级要求：${Math.max(b * 5 + 20, 65)}`,
+      `要跑100环数量：${fmtNum(Math.ceil(exp / 760))}`,
+    ])
+  }
+
+  // 工具7: 召唤兽升级计算
+  const [psFrom, setPsFrom] = useState(''); const [psTo, setPsTo] = useState('')
+  const [psRes, setPsRes] = useState<string[] | null>(null)
+  const calcPetShengji = () => {
+    const a = Number(psFrom), b = Number(psTo)
+    if (psFrom === '' || a < 1 || a > 180) { setPsRes(['当前等级输入有误，范围 1-180']); return }
+    if (psTo === '' || b < 1 || b > 180) { setPsRes(['目标等级输入有误，范围 1-180']); return }
+    if (a >= b) { setPsRes(['目标等级需大于当前等级']); return }
+    let exp = 0, yhl = 0
+    for (let i = a; i < b; i++) { const e = petExpStep(i); exp += e; yhl += e / (1000 * i + 1000) }
+    setPsRes([`需要经验：${fmtBig(exp)}`, `需要月华露：${fmtNum(Math.ceil(yhl))}`])
+  }
+
   // 工具4: 师门技能计算
   const [smFrom, setSmFrom] = useState(''); const [smTo, setSmTo] = useState('')
   const [smRes, setSmRes] = useState<string[] | null>(null)
@@ -504,6 +532,32 @@ function CalcView() {
           </div>
           <button className="btnH" style={btnStyle} onClick={calcBangpai}>查询</button>
           {bpRes && <div style={resStyle}>{bpRes.map((t, i) => <div key={i}>{t}</div>)}</div>}
+        </div>
+
+        {/* 召唤兽修炼计算 */}
+        <div style={cardStyle}>
+          <div style={titleStyle}>召唤兽修炼计算</div>
+          <label style={labelStyle}>修炼等级范围（0-25）</label>
+          <div style={rowStyle}>
+            <input value={pxFrom} onChange={e => setPxFrom(numOnly(e.target.value))} inputMode="numeric" placeholder="目前修炼等级" className="ctl" />
+            <span style={{ color: '#a89878', flexShrink: 0 }}>→</span>
+            <input value={pxTo} onChange={e => setPxTo(numOnly(e.target.value))} inputMode="numeric" placeholder="目标修炼等级" className="ctl" />
+          </div>
+          <button className="btnH" style={btnStyle} onClick={calcPetXiulian}>查询</button>
+          {pxRes && <div style={resStyle}>{pxRes.map((t, i) => <div key={i}>{t}</div>)}</div>}
+        </div>
+
+        {/* 召唤兽升级计算 */}
+        <div style={cardStyle}>
+          <div style={titleStyle}>召唤兽升级计算</div>
+          <label style={labelStyle}>召唤兽等级范围（1-180）</label>
+          <div style={rowStyle}>
+            <input value={psFrom} onChange={e => setPsFrom(numOnly(e.target.value))} inputMode="numeric" placeholder="当前等级" className="ctl" />
+            <span style={{ color: '#a89878', flexShrink: 0 }}>→</span>
+            <input value={psTo} onChange={e => setPsTo(numOnly(e.target.value))} inputMode="numeric" placeholder="目标等级" className="ctl" />
+          </div>
+          <button className="btnH" style={btnStyle} onClick={calcPetShengji}>查询</button>
+          {psRes && <div style={resStyle}>{psRes.map((t, i) => <div key={i}>{t}</div>)}</div>}
         </div>
       </div>
     </div>
