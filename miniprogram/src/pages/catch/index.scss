@@ -48,6 +48,25 @@
 .loginDesc { font-size: 23px; color: #a89878; margin-bottom: 34px; }
 .userLine { margin-top: 16px; font-size: 21px; color: #a89878; }
 
+/* 收益查询 */
+.dateRow { display: flex; align-items: center; gap: 14px; }
+.dateRow > picker { flex: 1; }
+.dateSep { color: #a89878; font-size: 22px; flex-shrink: 0; }
+.quickRow { display: flex; gap: 14px; margin: 18px 0 8px; }
+.quickBtn { padding: 12px 24px; font-size: 22px; font-weight: 700; color: #6a5a44; background: #f5ecdd; border: 1px solid #e6dac4; border-radius: 12px; }
+.quickBtn:active { opacity: .8; }
+.statHint { font-size: 22px; color: #a89878; }
+.statTotal { font-size: 22px; color: #8a7a5c; margin: 6px 0 16px; }
+.statTotalNum { font-weight: 900; color: #c1452e; }
+.statChips { display: flex; flex-wrap: wrap; gap: 14px; }
+.statChip { display: flex; align-items: center; gap: 10px; background: #fff; border: 1px solid #e6dac4; border-radius: 14px; padding: 12px 18px; }
+.statTag { font-size: 18px; font-weight: 700; color: #fff; padding: 3px 12px; border-radius: 10px; }
+.tagPet { background: #c1452e; }
+.tagRing { background: #8a4a12; }
+.tagOther { background: #8a7a5c; }
+.statName { font-size: 24px; font-weight: 700; color: #2a221a; }
+.statCount { font-size: 24px; font-weight: 900; color: #c1452e; }
+
 /* 本次任务记录 */
 .listTitle { font-size: 25px; font-weight: 700; color: #5a4a34; margin-bottom: 16px; }
 .logRow { display: flex; align-items: flex-start; padding: 14px 0; border-top: 1px solid #f3ead9; font-size: 22px; color: #3a3226; }

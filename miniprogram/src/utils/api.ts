@@ -120,6 +120,24 @@ export const fetchCatchLogs = (taskId: number) => req<{ rows: CatchLog[] }>(`/ap
 export const addCatchLog = (body: { task_id: number; category: string; scene: string; name: string; sub_type: string; coord_x: string; coord_y: string; current_time: string }) =>
   req<{ ok: boolean; id: number }>('/api/catch_log', 'POST', body)
 
+// 收益查询：日期范围内每种东西的数量（与网站一致）
+export interface CatchStat { category: string; name: string; sub_type: string; count: number }
+export const fetchCatchStats = (start: string, end: string) =>
+  req<{ start: string; end: string; rows: CatchStat[]; total: number }>(`/api/catch_stats?start=${start}&end=${end}&_=${Date.now()}`)
+
+// ---- 通用物品库 + 用户按区服自定义价格（与网站一致）----
+export interface GoodsItem { id: number; name: string; custom?: boolean }
+export interface GoodsCategory { name: string; custom?: boolean; goods: GoodsItem[] }
+export const fetchGoods = () => req<{ categories: GoodsCategory[] }>('/api/goods?_=' + Date.now()).then(d => d.categories)
+export const addCustomGood = (name: string, category: string) => req<{ ok: boolean }>('/api/goods_custom', 'POST', { name, category })
+export const deleteCustomGood = (goods_id: number) => req<{ ok: boolean }>('/api/goods_custom_delete', 'POST', { goods_id })
+export const addGoodsCategory = (name: string) => req<{ ok: boolean }>('/api/goods_category', 'POST', { name })
+export const deleteGoodsCategory = (name: string) => req<{ ok: boolean }>('/api/goods_category_delete', 'POST', { name })
+export const fetchGoodsPrices = (serverid: number) =>
+  req<{ prices: Record<string, number> }>(`/api/goods_prices?serverid=${serverid}&_=${Date.now()}`).then(d => d.prices)
+export const saveGoodsPrices = (body: { serverid: number; server_name: string; area_name: string; prices: { goods_id: number; price: number | null }[] }) =>
+  req<{ ok: boolean; saved: number; cleared: number }>('/api/goods_prices', 'POST', body)
+
 // ---- 纯函数 ----
 export function fmt(n: number | null | undefined): string {
   if (n == null || isNaN(Number(n))) return ''

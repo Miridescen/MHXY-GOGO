@@ -2,8 +2,8 @@ import { View, Text, Input, Picker } from '@tarojs/components'
 import Taro from '@tarojs/taro'
 import { useEffect, useState } from 'react'
 import {
-  fetchScenePets, fetchCatchTasks, startCatchTask, endCatchTask, fetchCatchLogs, addCatchLog, ensureLogin,
-  type SceneGroup, type CatchTask, type CatchLog, type AuthUser
+  fetchScenePets, fetchCatchTasks, startCatchTask, endCatchTask, fetchCatchLogs, addCatchLog, fetchCatchStats, ensureLogin,
+  type SceneGroup, type CatchTask, type CatchLog, type CatchStat, type AuthUser
 } from '../../utils/api'
 import './index.scss'
 
@@ -23,6 +23,13 @@ const fmtDur = (s: number) =>
 const catchLabel = (c: { category: string; name: string; sub_type: string }) =>
   c.category === '环装' ? `${c.name}环·${c.sub_type}` : c.category === '告密' ? '告密' : c.name
 
+// 'YYYY-MM-DD'，offset 为相对今天的天数
+const dayStr = (offset = 0) => {
+  const d = new Date(); d.setDate(d.getDate() + offset)
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
+
 export default function CatchPage() {
   const [category, setCategory] = useState<'召唤兽' | '环装'>('召唤兽')
   const [scenes, setScenes] = useState<SceneGroup[]>([])
@@ -38,6 +45,19 @@ export default function CatchPage() {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [authReady, setAuthReady] = useState(false)
 
+  // 收益查询：日期范围 + 每种东西分开计数
+  const [statStart, setStatStart] = useState(dayStr(-29))   // 默认近30天
+  const [statEnd, setStatEnd] = useState(dayStr(0))
+  const [stats, setStats] = useState<CatchStat[]>([])
+  const [statTotal, setStatTotal] = useState(0)
+  const [statBusy, setStatBusy] = useState(false)
+  const loadStats = async (s = statStart, e = statEnd) => {
+    setStatBusy(true)
+    try { const d = await fetchCatchStats(s, e); setStats(d.rows); setStatTotal(d.total) } catch (err) { /* ignore */ }
+    setStatBusy(false)
+  }
+  const quickRange = (days: number) => { const s = dayStr(-(days - 1)), e = dayStr(0); setStatStart(s); setStatEnd(e); loadStats(s, e) }
+
   // 进行中的任务 = 最近一条未结束的（服务端为准，刷新/换设备不丢）
   const active = tasks.find(t => !t.end_time) || null
   const curScene = scenes[sceneIdx] || null
@@ -46,7 +66,7 @@ export default function CatchPage() {
   const loadTasks = () => fetchCatchTasks().then(setTasks).catch(() => { /* ignore */ })
   // 静默登录（wx.login/tt.login 自动创建微信/抖音渠道账号）→ 再拉取本人任务
   useEffect(() => {
-    ensureLogin().then(u => { setUser(u); if (u) loadTasks() }).finally(() => setAuthReady(true))
+    ensureLogin().then(u => { setUser(u); if (u) { loadTasks(); loadStats() } }).finally(() => setAuthReady(true))
   }, [])
   useEffect(() => { fetchScenePets().then(setScenes).catch(() => { /* ignore */ }) }, [])
   useEffect(() => {
@@ -91,14 +111,14 @@ export default function CatchPage() {
     try {
       await addCatchLog({ task_id: active.id, category, scene, name, sub_type, coord_x: coordX, coord_y: coordY, current_time: nowLocal() })
       setCoordX(''); setCoordY('')
-      await Promise.all([fetchCatchLogs(active.id).then(setLogs), loadTasks()])
+      await Promise.all([fetchCatchLogs(active.id).then(setLogs), loadTasks(), loadStats()])
     } catch (e) { toast('录入失败：' + (e as Error).message) }
     setBusy(false)
   }
 
   const retryLogin = () => {
     setAuthReady(false)
-    ensureLogin().then(u => { setUser(u); if (u) loadTasks() }).finally(() => setAuthReady(true))
+    ensureLogin().then(u => { setUser(u); if (u) { loadTasks(); loadStats() } }).finally(() => setAuthReady(true))
   }
 
   if (!authReady) return <View className='page'><View className='cardBox loginTip'>登录中…</View></View>
@@ -186,6 +206,43 @@ export default function CatchPage() {
           {busy ? '处理中…' : '确认录入'}
         </View>
         {!active && <Text className='fNote'>请先点「开始」</Text>}
+      </View>
+
+      {/* 收益查询 */}
+      <View className='cardBox'>
+        <View className='listTitle'>收益查询</View>
+        <View className='dateRow'>
+          <Picker mode='date' value={statStart} end={statEnd} onChange={e => { setStatStart(e.detail.value); loadStats(e.detail.value, statEnd) }}>
+            <View className='pickerBox'>{statStart}</View>
+          </Picker>
+          <Text className='dateSep'>至</Text>
+          <Picker mode='date' value={statEnd} start={statStart} end={dayStr(0)} onChange={e => { setStatEnd(e.detail.value); loadStats(statStart, e.detail.value) }}>
+            <View className='pickerBox'>{statEnd}</View>
+          </Picker>
+        </View>
+        <View className='quickRow'>
+          {([['今天', 1], ['近7天', 7], ['近30天', 30]] as const).map(([label, n]) => (
+            <View key={label} className='quickBtn' onClick={() => quickRange(n)}>{label}</View>
+          ))}
+        </View>
+        {statBusy
+          ? <Text className='statHint'>查询中…</Text>
+          : stats.length === 0
+            ? <Text className='statHint'>该时间段内暂无收获记录</Text>
+            : (
+              <View>
+                <View className='statTotal'>共 <Text className='statTotalNum'>{statTotal}</Text> 件</View>
+                <View className='statChips'>
+                  {stats.map((s, i) => (
+                    <View key={i} className='statChip'>
+                      <Text className={'statTag ' + (s.category === '召唤兽' ? 'tagPet' : s.category === '环装' ? 'tagRing' : 'tagOther')}>{s.category}</Text>
+                      <Text className='statName'>{catchLabel(s)}</Text>
+                      <Text className='statCount'>×{s.count}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
       </View>
 
       {/* 本次任务记录 */}

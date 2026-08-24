@@ -1,0 +1,35 @@
+.page { padding: 24px 24px 60px; }
+
+.cardBox { background: #fdfaf3; border: 1px solid #ece2cf; border-radius: 22px; padding: 24px; margin-bottom: 24px; }
+
+/* 登录态 */
+.loginTip { text-align: center; padding: 60px 40px; font-size: 26px; color: #a89878; }
+.loginTitle { font-size: 30px; font-weight: 800; color: #2a221a; margin-bottom: 14px; }
+.loginDesc { font-size: 23px; color: #a89878; }
+
+/* 区服 + 保存 */
+.topRow { display: flex; gap: 16px; align-items: stretch; }
+.topRow > picker { flex: 1; }
+.pickerBox { background: #fff; border: 1px solid #e2d6bf; border-radius: 14px; padding: 18px 20px; font-size: 25px; color: #2a221a; }
+.caret { color: #c1452e; float: right; }
+.saveBtn { flex-shrink: 0; display: flex; align-items: center; padding: 0 40px; font-size: 26px; font-weight: 800; color: #fff; background: #c1452e; border-radius: 14px; }
+.saveBtn.off { background: #d9cdbb; }
+.saveBtn:active { opacity: .85; }
+.hint { margin-top: 16px; font-size: 21px; color: #a89878; line-height: 1.6; }
+
+/* 分类 */
+.catScroll { white-space: nowrap; margin-bottom: 22px; }
+.catChip { display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; margin-right: 14px; font-size: 24px; font-weight: 700; color: #6a5a44; background: #f5ecdd; border-radius: 12px; }
+.catChip.catOn { color: #fff; background: #c1452e; }
+.catChip.catAdd { color: #a8351f; background: transparent; border: 1px dashed #d0b98f; }
+.delX { font-size: 26px; line-height: 1; opacity: .75; }
+
+/* 物品网格 */
+.goodsGrid { display: flex; flex-wrap: wrap; gap: 18px; }
+.goodsCard { position: relative; width: calc(50% - 9px); box-sizing: border-box; background: #fdfaf3; border: 1px solid #ece2cf; border-radius: 16px; padding: 20px; }
+.goodName { display: block; font-size: 24px; font-weight: 700; color: #2a221a; margin-bottom: 12px; padding-right: 28px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.goodInput { background: #fff; border: 1px solid #e2d6bf; border-radius: 12px; padding: 14px 16px; font-size: 24px; color: #2a221a; }
+.goodX { position: absolute; top: 10px; right: 18px; font-size: 30px; font-weight: 700; color: #b0a48c; line-height: 1; }
+.goodsAdd { display: flex; flex-direction: column; align-items: center; justify-content: center; border-style: dashed; border-color: #d0b98f; background: transparent; }
+.addGoodText { font-size: 25px; font-weight: 800; color: #a8351f; }
+.addGoodSub { font-size: 21px; color: #a89878; margin-top: 6px; }

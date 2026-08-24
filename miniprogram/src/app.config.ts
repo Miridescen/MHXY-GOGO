@@ -1,5 +1,5 @@
 export default defineAppConfig({
-  pages: ['pages/index/index', 'pages/catch/index', 'pages/calc/index'],
+  pages: ['pages/index/index', 'pages/catch/index', 'pages/goods/index', 'pages/calc/index'],
   window: {
     backgroundTextStyle: 'light',
     navigationBarBackgroundColor: '#faf6ee',
@@ -15,6 +15,7 @@ export default defineAppConfig({
     list: [
       { pagePath: 'pages/index/index', text: '比价' },
       { pagePath: 'pages/catch/index', text: '场景记录' },
+      { pagePath: 'pages/goods/index', text: '物品价格' },
       { pagePath: 'pages/calc/index', text: '计算器' }
     ]
   }
