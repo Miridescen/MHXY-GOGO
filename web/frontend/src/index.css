@@ -11,6 +11,10 @@ body {
 #root { min-height: 100vh; }
 ::-webkit-scrollbar { width: 9px; height: 9px; }
 ::-webkit-scrollbar-thumb { background: #d8c8ac; border-radius: 6px; }
+/* 隐藏页面主滚动条：切页时滚动条出现/消失会让视口宽度变化、UI 横向跳动，隐藏后宽度恒定不再跳。
+   仅隐藏 html 主滚动条，页面内部横向滚动区(矩阵表)不受影响，仍可正常滚动。 */
+html { scrollbar-width: none; }             /* Firefox */
+html::-webkit-scrollbar { display: none; }  /* Chrome / Safari / Edge */
 input::placeholder { color: #b8a888; }
 a { color: inherit; }
 
