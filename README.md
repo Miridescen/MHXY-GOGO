@@ -7,7 +7,7 @@
 ## 工作流（一步自动）
 
 ```
-浏览器爬取(住宅IP Chrome)                       服务器(阿里云)
+浏览器爬取(住宅IP Chrome)                       服务器(腾讯云·广州)
   登录藏宝阁 → F12控制台贴 crawl_console.js
   → 单线程慢速爬各服最低价 → 自动 POST          ──HTTPS令牌──►  /api/ingest 入库
                                                                   ↓
