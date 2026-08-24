@@ -1119,10 +1119,12 @@ export default function App() {
                     {user.nickname} <span style={{ fontSize: 11, color: '#a89878' }}>✎</span>
                   </span>
                 )}
-                <span style={{ fontSize: 10, fontWeight: 700, color: '#fff', padding: '2px 8px', borderRadius: 9,
-                  background: user.channel === 'wechat' ? '#07c160' : user.channel === 'douyin' ? '#161823' : '#8a7a5c' }}>
-                  {CHANNEL_LABEL[user.channel] || user.channel}
-                </span>
+                {user.channel !== 'normal' && (
+                  <span style={{ fontSize: 10, fontWeight: 700, color: '#fff', padding: '2px 8px', borderRadius: 9,
+                    background: user.channel === 'wechat' ? '#07c160' : user.channel === 'douyin' ? '#161823' : '#8a7a5c' }}>
+                    {CHANNEL_LABEL[user.channel] || user.channel}
+                  </span>
+                )}
                 <button className="btnH" onClick={doLogout}
                   style={{ fontSize: 12, fontWeight: 700, color: '#8a7a5c', background: 'transparent', border: '1px solid #e0d2b8', borderRadius: 7, padding: '5px 10px', cursor: 'pointer', fontFamily: 'inherit' }}>退出</button>
               </>
