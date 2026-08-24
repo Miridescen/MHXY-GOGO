@@ -43,6 +43,15 @@ web/
 | 网站 | nginx HTTPS 443（dogfever.cn）→ `/var/www/mhxy/` + 反代 `/api`（Let's Encrypt certbot，自动续期；80 跳 443） |
 | 导入接口 | `POST /api/ingest`（X-Token 令牌校验） |
 
+### 后端部署（⚠️ 唯一真相 = 仓库 `web/backend/`）
+
+服务器上的 `/opt/cbg-data/web-backend/` 不是 git 仓、是仓库的**派生副本**。**只准改仓库 `web/backend/`，再用脚本下发；绝不手改服务器上的文件**（否则两处漂移且无人察觉）。
+
+```bash
+sh deploy.sh          # 同步 web/backend/ → 服务器 + 重启 mhxy-api
+sh deploy.sh --check   # 只对比、检测漂移（发版前自检）
+```
+
 ## 数据库表
 
 4 张表：`category`(品类维表) / `item`(物品) / `price_history`(价格历史) / `server_map`(区服映射)。
