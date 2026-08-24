@@ -1,10 +1,7 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { Routes, Route, NavLink, useLocation, useNavigate, Link } from 'react-router-dom'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { Routes, Route, NavLink, useNavigate, Link } from 'react-router-dom'
 import { EXP_TABLE, XIULIAN, XIULIAN_TYPES, SHIMEN, BANGPAI, BANGPAI_SKILLS, PET_XIULIAN_CUM, petExpStep, type XlStep } from './calcData'
-import { fetchOverview, fmt, serveridOf, serverCell, addCatchLog, fetchCatchLogs, startCatchTask, endCatchTask, fetchCatchTasks, fetchCatchStats, fetchScenePets, fetchGoods, fetchGoodsPrices, saveGoodsPrices, addCustomGood, deleteCustomGood, addGoodsCategory, deleteGoodsCategory, authLogin, authRegisterEmail, sendEmailCode, authMe, authLogout, CHANNEL_LABEL, type AuthUser, type Overview, type Item, type Region, type Roles, type RoleCell, type Equip, type EquipGroup, type CatchLog, type CatchTask, type CatchStat, type SceneGroup, type GoodsCategory } from './api'
-
-const CBG = 'https://xyq.cbg.163.com/'
-const SEL_KEY = '__mhxy_sel'   // localStorage: 记住用户选的区服/模式
+import { fetchOverview, fmt, addCatchLog, fetchCatchLogs, startCatchTask, endCatchTask, fetchCatchTasks, fetchCatchStats, fetchScenePets, fetchGoods, fetchGoodsPrices, saveGoodsPrices, addCustomGood, deleteCustomGood, addGoodsCategory, deleteGoodsCategory, authLogin, authRegisterEmail, sendEmailCode, authMe, authLogout, CHANNEL_LABEL, type AuthUser, type Overview, type Region, type Roles, type RoleCell, type Equip, type EquipGroup, type CatchLog, type CatchTask, type CatchStat, type SceneGroup, type GoodsCategory } from './api'
 
 const S: Record<string, CSSProperties> = {
   topbar: { position: 'fixed', top: 0, left: 0, right: 0, zIndex: 40, background: '#faf6eecc', backdropFilter: 'saturate(1.2) blur(8px)', borderBottom: '1px solid #ece2cf' },
@@ -21,27 +18,6 @@ const S: Record<string, CSSProperties> = {
   tableHd: { display: 'grid', gridTemplateColumns: '2.7fr 1.3fr 1.5fr 1fr 1fr', padding: '12px 22px', fontSize: 11, fontWeight: 700, color: '#b0a48c', letterSpacing: .5, borderBottom: '1px solid #ece2cf', background: '#f7efe2' },
   tableRow: { display: 'grid', gridTemplateColumns: '2.7fr 1.3fr 1.5fr 1fr 1fr', alignItems: 'center', padding: '14px 22px', borderBottom: '1px solid #f0e7d6' },
 }
-const segOn: CSSProperties = { padding: '7px 15px', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 700, cursor: 'pointer', background: '#c1452e', color: '#fff' }
-const segOff: CSSProperties = { padding: '7px 15px', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: 'transparent', color: '#6a5a44' }
-const badgeOn: CSSProperties = { fontSize: 9.5, fontWeight: 700, color: '#fff', background: '#c1452e', padding: '2px 7px', borderRadius: 10 }
-
-type Mode = 'global' | 'server'
-
-interface Row {
-  it: Item
-  price: string            // 主价格列：全服模式=全服最低价；本服模式=本服价格
-  priceHint: string        // 本服模式主价格下小字（本服无在售 / ✓本服即全服最低）；全服模式空
-  priceHintColor: string
-  loc: string              // 全服模式：所在区服（大区·服务器）
-  gLowPrice: string        // 本服模式：全服最低价
-  gLowLoc: string          // 本服模式：全服最低的 大区·服务器
-  badge: string; showBadge: boolean; cbg: string
-}
-
-function Trend({ points, color, w = 64 }: { points: string; color: string; w?: number }) {
-  return <svg width={w} height={22} viewBox="0 0 64 22"><polyline points={points} fill="none" stroke={color} strokeWidth={2} /></svg>
-}
-
 // 角色+限量锦衣：选锦衣 → 看 性别×等级 全服最低价
 // 角色携带物（锦衣/坐骑）通用：先选物品，再看 性别×等级 矩阵
 function RoleCarryView({ title, items, rc }: {
@@ -1015,12 +991,6 @@ function CatchLogView() {
 export default function App() {
   const [data, setData] = useState<Overview | null>(null)
   const [err, setErr] = useState('')
-  const [mode, setMode] = useState<Mode>('global')
-  const [daqu, setDaqu] = useState('')
-  const [server, setServer] = useState('')
-  const [openDaqu, setOpenDaqu] = useState(false)
-  const [openServer, setOpenServer] = useState(false)
-  const selRef = useRef<HTMLDivElement>(null)
   const [user, setUser] = useState<AuthUser | null>(null)
   const [authReady, setAuthReady] = useState(false)
   useEffect(() => { authMe().then(setUser).catch(() => { /* ignore */ }).finally(() => setAuthReady(true)) }, [])
@@ -1039,69 +1009,13 @@ export default function App() {
   }, [data])   // topbar 在 data 加载后才渲染
 
   useEffect(() => {
-    fetchOverview().then(d => {
-      setData(d)
-      // 恢复上次选择的区服/模式（localStorage），无效则回退到第一个区
-      const r0 = d.regions[0]
-      let dq = r0?.daqu || '', sv = r0?.servers[0]?.name || ''
-      try {
-        const saved = JSON.parse(localStorage.getItem(SEL_KEY) || 'null')
-        if (saved) {
-          const reg = d.regions.find(r => r.daqu === saved.daqu)
-          if (reg && reg.servers.some(s => s.name === saved.server)) {
-            dq = saved.daqu; sv = saved.server
-            if (saved.mode === 'global' || saved.mode === 'server') setMode(saved.mode)
-          }
-        }
-      } catch { /* ignore */ }
-      setDaqu(dq); setServer(sv)
-    }).catch(e => setErr(String(e.message || e)))
+    fetchOverview().then(setData).catch(e => setErr(String(e.message || e)))
   }, [])
-
-  // 选择变化时记住（区服 + 模式）
-  useEffect(() => {
-    if (daqu) localStorage.setItem(SEL_KEY, JSON.stringify({ mode, daqu, server }))
-  }, [mode, daqu, server])
-
-  useEffect(() => {
-    const h = (e: MouseEvent) => { if (selRef.current && !selRef.current.contains(e.target as Node)) { setOpenDaqu(false); setOpenServer(false) } }
-    document.addEventListener('click', h)
-    return () => document.removeEventListener('click', h)
-  }, [])
-
-  const region: Region | undefined = useMemo(() => data?.regions.find(r => r.daqu === daqu) || data?.regions[0], [data, daqu])
-  const curSid = useMemo(() => serveridOf(region, server), [region, server])
-  const isGlobal = mode === 'global'
-  const isPrice = useLocation().pathname === '/'   // 区服选择器仅比价页显示
-
-  const list = useMemo(() => data?.items || [], [data])
-
-  const rows: Row[] = useMemo(() => list.map(it => {
-    const gLoc = `${it.low.daqu} · ${it.low.server}`
-    if (isGlobal) {
-      // 全服模式：主价格=全服最低价（去掉历史最低小字），右列=所在区服
-      return { it, price: fmt(it.low.price), priceHint: '', priceHintColor: '',
-        loc: gLoc, gLowPrice: '', gLowLoc: '', badge: '全服最低', showBadge: true, cbg: it.low.link || CBG }
-    }
-    // 本服模式：主价格=本服价格；全服最低单独成列(价格+大区·服务器)
-    const here = serverCell(it, curSid)
-    const cheaper = !!here && it.low.price < here.price
-    return { it,
-      price: here ? fmt(here.price) : '—',
-      priceHint: !here ? '本服无在售' : (cheaper ? '' : '✓ 本服即全服最低'),
-      priceHintColor: '#3a7a5a',
-      loc: '',
-      gLowPrice: fmt(it.low.price), gLowLoc: gLoc,
-      badge: '全服最低', showBadge: !!here && !cheaper,
-      cbg: here ? (here.link || CBG) : (it.low.link || CBG) }
-  }), [list, isGlobal, curSid])
 
   if (err) return <div style={{ textAlign: 'center', padding: '80px 0', color: '#c1452e' }}>数据加载失败：{err}</div>
   if (!data) return <div style={{ textAlign: 'center', padding: '80px 0', color: '#b0a48c' }}>加载中…</div>
 
-  const priceColLabel = isGlobal ? '全服最低价' : '本服价格'
-  const col3Label = isGlobal ? '所在区服' : '全服最低'
-  const gridCols = isGlobal ? '2.7fr 1.3fr 1.5fr 1fr 1fr' : '2.4fr 1.2fr 1.9fr 1fr 1fr'
+  const region0 = data.regions[0]
 
   return (
     <div>
@@ -1122,37 +1036,8 @@ export default function App() {
                 style={({ isActive }) => ({ padding: '8px 15px', fontSize: 14, fontWeight: 800, textDecoration: 'none', borderRadius: 8, color: isActive ? '#fff' : '#8a7a5c', background: isActive ? '#c1452e' : 'transparent' })}>{label}</NavLink>
             ))}
           </nav>
-          {isPrice && <div ref={selRef} style={{ display: 'flex', alignItems: 'center', gap: 8, position: 'relative', marginLeft: 'auto' }}>
-            <span className="serif" style={{ fontSize: 12, color: '#a89878' }}>当前区服</span>
-            <button style={S.daquBtn} onClick={() => { setOpenDaqu(v => !v); setOpenServer(false) }}>{daqu} <span style={{ color: '#c1452e' }}>▾</span></button>
-            <button style={S.srvBtn} onClick={() => { setOpenServer(v => !v); setOpenDaqu(false) }}>{server} <span style={{ color: '#c1452e' }}>▾</span></button>
-            {openDaqu && (
-              <div className="panel" style={S.panel}>
-                <div style={S.panelHd}>第一步 · 选择大区</div>
-                {data.regions.map(r => {
-                  const on = r.daqu === daqu
-                  return <div key={r.daqu} className="daquItem" onClick={() => { setDaqu(r.daqu); setServer(r.servers[0]?.name || ''); setOpenDaqu(false); setOpenServer(true) }}
-                    style={{ padding: '10px 16px', fontSize: 13.5, cursor: 'pointer', ...(on ? { fontWeight: 800, color: '#a8351f', background: '#fbeee8', borderLeft: '3px solid #c1452e' } : { color: '#5a4a34', borderLeft: '3px solid transparent' }) }}>
-                    {r.daqu}<span style={{ float: 'right', color: '#a89878', fontWeight: 400, fontSize: 12 }}>{r.servers.length} 服</span>
-                  </div>
-                })}
-              </div>
-            )}
-            {openServer && region && (
-              <div className="panel" style={S.panel}>
-                <div style={S.panelHd}>第二步 · {region.daqu} 下选择服务器</div>
-                {region.servers.map(s => {
-                  const on = s.name === server
-                  return <div key={s.name + s.serverid} className="srvItem" onClick={() => { setServer(s.name); setOpenServer(false); setMode('server') }}
-                    style={{ padding: '10px 16px', fontSize: 13.5, cursor: 'pointer', color: '#5a4a34', ...(on ? { fontWeight: 800, color: '#a8351f', background: '#fbeee8' } : {}) }}>
-                    {s.name}<span style={{ float: 'right' }}>{on ? '✓' : ''}</span>
-                  </div>
-                })}
-              </div>
-            )}
-          </div>}
           {/* 用户区：登录状态 / 登录注册入口 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: isPrice ? 0 : 'auto' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
             {user ? (
               <>
                 <span style={{ fontSize: 13, fontWeight: 700, color: '#2a221a' }}>{user.nickname}</span>
@@ -1177,102 +1062,14 @@ export default function App() {
       <div style={S.main}>
         <Routes>
           <Route path="/" element={<>
-        {/* 全服 / 本服 切换 */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
-          <div style={{ display: 'flex', background: '#f1e7d6', border: '1px solid #e6dac4', borderRadius: 9, padding: 3 }}>
-            <button style={isGlobal ? segOn : segOff} onClick={() => { setMode('global'); setOpenDaqu(false); setOpenServer(false) }}>全服最低价</button>
-            <button style={!isGlobal ? segOn : segOff} onClick={() => { setMode('server'); setOpenDaqu(false); setOpenServer(false) }}>本服 · {server}</button>
-          </div>
-        </div>
-
         {/* 数据更新时间 */}
         <div style={{ fontSize: 11.5, color: '#b0a48c', marginBottom: 14 }}>数据更新于 {data.generated_at}</div>
 
-        {/* 角色价格（仅全服模式）：境界矩阵 + 限量锦衣 */}
-        {isGlobal && <RoleMatrix roles={data.roles} />}
-        {isGlobal && <RoleCarryView title="角色 + 七夕限量锦衣 · 全服最低价" items={data.roleClothes.clothes} rc={data.roleClothes} />}
-        {isGlobal && <RoleCarryView title="角色 + 限量坐骑 · 全服最低价" items={data.roleMounts.mounts} rc={data.roleMounts} />}
-        {isGlobal && <EquipView equip={data.equip} />}
-
-        {/* 物品列表标题 */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 6 }}>
-          <div style={{ fontSize: 15, fontWeight: 800, color: '#2a221a' }}>{isGlobal ? '全服最低价' : `本服 · ${server}`}</div>
-          <div style={{ fontSize: 11, color: '#b0a48c' }}>价格仅供参考，点击「去购买」跳转藏宝阁实时核价</div>
-        </div>
-
-        {rows.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '50px 0', color: '#b0a48c', fontSize: 14 }}>没有找到匹配的物品，换个关键词或分类试试</div>
-        ) : (
-          <>
-            {/* DESKTOP TABLE */}
-            <div className="tableWrap">
-              <div style={{ background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 14, overflow: 'hidden' }}>
-                <div style={{ ...S.tableHd, gridTemplateColumns: gridCols }}>
-                  <div>物品</div><div>{priceColLabel}</div><div>{col3Label}</div><div>价格趋势</div><div style={{ textAlign: 'right' }}>操作</div>
-                </div>
-                {rows.map(r => (
-                  <div key={r.it.id} style={{ ...S.tableRow, gridTemplateColumns: gridCols }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
-                      <div style={{ width: 42, height: 42, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 16, flexShrink: 0, background: r.it.iconBg, color: r.it.iconFg }}>{r.it.icon}</div>
-                      <div>
-                        <div style={{ fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 7 }}>{r.it.name} {r.showBadge && <span style={badgeOn}>{r.badge}</span>}</div>
-                        <div style={{ fontSize: 11, color: '#a89878', marginTop: 3 }}>{r.it.cat}</div>
-                      </div>
-                    </div>
-                    {/* 主价格列 */}
-                    <div>
-                      <div className="serif" style={{ fontSize: 18, fontWeight: 900, color: '#2a221a' }}>{r.price}</div>
-                      {r.priceHint && <div style={{ fontSize: 10.5, marginTop: 2, color: r.priceHintColor }}>{r.priceHint}</div>}
-                    </div>
-                    {/* 第三列：全服=所在区服；本服=全服最低(价格+大区·服务器) */}
-                    {isGlobal
-                      ? <div style={{ fontSize: 13, color: '#6a5a44' }}>{r.loc}</div>
-                      : <div>
-                          <div className="serif" style={{ fontSize: 16, fontWeight: 900, color: '#c1452e' }}>{r.gLowPrice}</div>
-                          <div style={{ fontSize: 11, color: '#a89878', marginTop: 2 }}>{r.gLowLoc}</div>
-                        </div>}
-                    <div><Trend points={r.it.points} color={r.it.trendColor} /></div>
-                    <div style={{ textAlign: 'right' }}>
-                      <a href={r.cbg} target="_blank" rel="noopener" style={{ display: 'inline-block', background: '#fbeee8', color: '#a8351f', textDecoration: 'none', border: '1px solid #ecccc2', padding: '7px 13px', borderRadius: 7, fontSize: 12, fontWeight: 700 }}>去购买 ↗</a>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* MOBILE CARDS */}
-            <div className="cardWrap" style={{ flexDirection: 'column', gap: 12 }}>
-              {rows.map(r => (
-                <div key={r.it.id} style={{ background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 14, padding: 14, marginBottom: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div style={{ width: 46, height: 46, borderRadius: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 18, flexShrink: 0, background: r.it.iconBg, color: r.it.iconFg }}>{r.it.icon}</div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 7 }}>{r.it.name} {r.showBadge && <span style={badgeOn}>{r.badge}</span>}</div>
-                      <div style={{ fontSize: 11, color: '#a89878', marginTop: 3 }}>{isGlobal ? r.loc : r.it.cat}</div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div className="serif" style={{ fontSize: 19, fontWeight: 900, color: '#2a221a' }}>{r.price}</div>
-                      {r.priceHint && <div style={{ fontSize: 10, marginTop: 2, color: r.priceHintColor }}>{r.priceHint}</div>}
-                    </div>
-                  </div>
-                  {!isGlobal && (
-                    <div style={{ marginTop: 10, fontSize: 12, color: '#6a5a44', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                      全服最低 <span className="serif" style={{ fontWeight: 900, color: '#c1452e', fontSize: 14 }}>{r.gLowPrice}</span>
-                      <span style={{ color: '#a89878' }}>· {r.gLowLoc}</span>
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, paddingTop: 12, borderTop: '1px solid #f0e7d6' }}>
-                    <Trend points={r.it.points} color={r.it.trendColor} w={72} />
-                    <a href={r.cbg} target="_blank" rel="noopener" style={{ background: '#c1452e', color: '#fff', textDecoration: 'none', padding: '9px 18px', borderRadius: 8, fontSize: 12.5, fontWeight: 800 }}>去藏宝阁购买 ↗</a>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-        <div style={{ marginTop: 32, textAlign: 'center', fontSize: 11, color: '#c0b49c', lineHeight: 1.7 }}>
-          狗脑发热 · 梦幻西游藏宝阁全服比价 · 数据更新于 {data.generated_at}<br />价格每日更新，仅供参考，点击「去购买」以藏宝阁实时为准
-        </div>
+        {/* 角色境界矩阵 + 限量锦衣 + 坐骑 + 装备（全服最低价） */}
+        <RoleMatrix roles={data.roles} />
+        <RoleCarryView title="角色 + 七夕限量锦衣 · 全服最低价" items={data.roleClothes.clothes} rc={data.roleClothes} />
+        <RoleCarryView title="角色 + 限量坐骑 · 全服最低价" items={data.roleMounts.mounts} rc={data.roleMounts} />
+        <EquipView equip={data.equip} />
           </>} />
           <Route path="/catch" element={
             !authReady ? <div style={{ textAlign: 'center', padding: '60px 0', color: '#b0a48c' }}>加载中…</div>
@@ -1287,7 +1084,7 @@ export default function App() {
           } />
           <Route path="/goods" element={
             !authReady ? <div style={{ textAlign: 'center', padding: '60px 0', color: '#b0a48c' }}>加载中…</div>
-            : user ? <GoodsView regions={data.regions} initDaqu={daqu} initServer={server} />
+            : user ? <GoodsView regions={data.regions} initDaqu={region0?.daqu || ''} initServer={region0?.servers[0]?.name || ''} />
             : (
               <div style={{ maxWidth: 400, margin: '40px auto 0', background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 14, padding: 30, textAlign: 'center' }}>
                 <div style={{ fontSize: 16, fontWeight: 800, color: '#2a221a', marginBottom: 10 }}>物品价格需要登录后使用</div>

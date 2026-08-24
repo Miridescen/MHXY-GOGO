@@ -2,12 +2,22 @@
 
 .tip { font-size: 21px; color: #a89878; margin-bottom: 20px; }
 
+/* 左菜单 + 右单工具 */
+.calcLayout { display: flex; gap: 20px; align-items: flex-start; }
+.calcMenu { flex-shrink: 0; width: 178px; background: #fdfaf3; border: 1px solid #ece2cf; border-radius: 18px; padding: 12px 10px; }
+.calcGroup { font-size: 19px; font-weight: 700; color: #b0a48c; letter-spacing: 1px; padding: 14px 12px 8px; }
+.calcMenuItem { padding: 16px 12px; font-size: 22px; font-weight: 600; color: #6a5a44; border-radius: 12px; margin-bottom: 4px; }
+.calcMenuItem.menuOn { color: #fff; background: #c1452e; font-weight: 800; }
+.calcMenuItem:active { opacity: .85; }
+.calcBody { flex: 1; min-width: 0; }
+.calcBody .cardBox { margin-bottom: 0; }
+
 .cardBox { background: #fdfaf3; border: 1px solid #ece2cf; border-radius: 22px; padding: 28px; margin-bottom: 26px; }
 .cardTitle { font-size: 30px; font-weight: 900; color: #c1452e; border-left: 6px solid #c1452e; padding-left: 18px; letter-spacing: 2px; margin-bottom: 8px; }
 
 .fLabel { font-size: 24px; font-weight: 700; color: #5a4a34; margin: 22px 0 12px; }
 
-.row { display: flex; gap: 12px; align-items: center; }
+.row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .numInput { flex: 1; min-width: 0; background: #fff; border: 1px solid #e2d6bf; border-radius: 14px; padding: 16px 18px; font-size: 24px; color: #2a221a; height: auto; }
 .numInput.short { flex: 0 0 180px; }
 .arrow { color: #a89878; font-size: 24px; flex-shrink: 0; }

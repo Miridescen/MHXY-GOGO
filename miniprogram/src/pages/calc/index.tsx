@@ -11,7 +11,16 @@ const fmtBig = (n: number) => {
 }
 const numOnly = (v: string) => v.replace(/\D/g, '').slice(0, 12)
 
+// 左侧功能菜单（与网页端一致）
+const CALC_MENU: { group: string; items: [string, string][] }[] = [
+  { group: '角色', items: [['exp', '经验换算'], ['changgui', '常规计算'], ['xiulian', '修炼计算']] },
+  { group: '技能', items: [['shimen', '师门技能'], ['bangpai', '帮派技能']] },
+  { group: '召唤兽', items: [['petxl', '召唤兽修炼'], ['petsj', '召唤兽升级']] },
+]
+
 export default function CalcPage() {
+  const [tool, setTool] = useState('exp')
+
   // 工具1: 经验换算
   const [lvFrom, setLvFrom] = useState(''); const [lvTo, setLvTo] = useState('')
   const [lvRes, setLvRes] = useState<string | null>(null)
@@ -135,109 +144,133 @@ export default function CalcPage() {
     <View className='page'>
       <View className='tip'>数据与算法迁自官方梦幻工具箱，本地即时计算</View>
 
-      {/* 经验换算 */}
-      <View className='cardBox'>
-        <View className='cardTitle'>经验换算</View>
-        <View className='fLabel'>等级换算经验</View>
-        <View className='row'>
-          <Input className='numInput' type='number' placeholder='当前等级' value={lvFrom} onInput={e => setLvFrom(numOnly(e.detail.value))} />
-          <Text className='arrow'>→</Text>
-          <Input className='numInput' type='number' placeholder='目标等级' value={lvTo} onInput={e => setLvTo(numOnly(e.detail.value))} />
-          <View className='qBtn' onClick={calcLvToExp}>查询</View>
+      <View className='calcLayout'>
+        {/* 左侧功能菜单 */}
+        <View className='calcMenu'>
+          {CALC_MENU.map(g => (
+            <View key={g.group}>
+              <View className='calcGroup'>{g.group}</View>
+              {g.items.map(([k, label]) => (
+                <View key={k} className={'calcMenuItem ' + (tool === k ? 'menuOn' : '')} onClick={() => setTool(k)}>{label}</View>
+              ))}
+            </View>
+          ))}
         </View>
-        {lvRes && <View className='resBox'>{lvRes}</View>}
-        <View className='fLabel'>经验换算等级</View>
-        <View className='row'>
-          <Input className='numInput' type='number' placeholder='当前经验' value={expVal} onInput={e => setExpVal(numOnly(e.detail.value))} />
-          <Input className='numInput short' type='number' placeholder='当前等级' value={expLv} onInput={e => setExpLv(numOnly(e.detail.value))} />
-          <View className='qBtn' onClick={calcExpToLv}>查询</View>
-        </View>
-        {expRes && <View className='resBox'>{expRes}</View>}
-      </View>
 
-      {/* 常规计算 */}
-      <View className='cardBox'>
-        <View className='cardTitle'>常规计算</View>
-        <View className='fLabel'>人物等级</View>
-        <View className='row'>
-          <Input className='numInput' type='number' placeholder='0-175' value={cgLv} onInput={e => setCgLv(numOnly(e.detail.value))} />
-          <View className='qBtn' onClick={calcChanggui}>查询</View>
-        </View>
-        {cgRes && <View className='resBox'>{cgRes}</View>}
-      </View>
+        {/* 右侧：当前选中的工具 */}
+        <View className='calcBody'>
+        {/* 经验换算 */}
+        {tool === 'exp' && (
+        <View className='cardBox'>
+          <View className='cardTitle'>经验换算</View>
+          <View className='fLabel'>等级换算经验</View>
+          <View className='row'>
+            <Input className='numInput' type='number' placeholder='当前等级' value={lvFrom} onInput={e => setLvFrom(numOnly(e.detail.value))} />
+            <Text className='arrow'>→</Text>
+            <Input className='numInput' type='number' placeholder='目标等级' value={lvTo} onInput={e => setLvTo(numOnly(e.detail.value))} />
+            <View className='qBtn' onClick={calcLvToExp}>查询</View>
+          </View>
+          {lvRes && <View className='resBox'>{lvRes}</View>}
+          <View className='fLabel'>经验换算等级</View>
+          <View className='row'>
+            <Input className='numInput' type='number' placeholder='当前经验' value={expVal} onInput={e => setExpVal(numOnly(e.detail.value))} />
+            <Input className='numInput short' type='number' placeholder='当前等级' value={expLv} onInput={e => setExpLv(numOnly(e.detail.value))} />
+            <View className='qBtn' onClick={calcExpToLv}>查询</View>
+          </View>
+          {expRes && <View className='resBox'>{expRes}</View>}
+        </View>)}
 
-      {/* 修炼计算 */}
-      <View className='cardBox'>
-        <View className='cardTitle'>修炼计算</View>
-        <View className='fLabel'>类型</View>
-        <Picker mode='selector' range={XIULIAN_TYPES.map(t => t[1])} value={xlTypeIdx} onChange={e => setXlTypeIdx(Number(e.detail.value))}>
-          <View className='pickerBox'>{XIULIAN_TYPES[xlTypeIdx][1]} <Text className='caret'>▾</Text></View>
-        </Picker>
-        <View className='fLabel'>修炼等级范围</View>
-        <View className='row'>
-          <Input className='numInput' type='number' placeholder='目前(0-25)' value={xlFrom} onInput={e => setXlFrom(numOnly(e.detail.value))} />
-          <Text className='arrow'>→</Text>
-          <Input className='numInput' type='number' placeholder='目标(0-25)' value={xlTo} onInput={e => setXlTo(numOnly(e.detail.value))} />
-          <View className='qBtn' onClick={calcXiulian}>查询</View>
-        </View>
-        {xlRes && <View className='resBox'>{xlRes}</View>}
-      </View>
+        {/* 常规计算 */}
+        {tool === 'changgui' && (
+        <View className='cardBox'>
+          <View className='cardTitle'>常规计算</View>
+          <View className='fLabel'>人物等级</View>
+          <View className='row'>
+            <Input className='numInput' type='number' placeholder='0-175' value={cgLv} onInput={e => setCgLv(numOnly(e.detail.value))} />
+            <View className='qBtn' onClick={calcChanggui}>查询</View>
+          </View>
+          {cgRes && <View className='resBox'>{cgRes}</View>}
+        </View>)}
 
-      {/* 师门技能计算 */}
-      <View className='cardBox'>
-        <View className='cardTitle'>师门技能计算</View>
-        <View className='fLabel'>技能等级范围（0-180）</View>
-        <View className='row'>
-          <Input className='numInput' type='number' placeholder='当前等级' value={smFrom} onInput={e => setSmFrom(numOnly(e.detail.value))} />
-          <Text className='arrow'>→</Text>
-          <Input className='numInput' type='number' placeholder='到达等级' value={smTo} onInput={e => setSmTo(numOnly(e.detail.value))} />
-          <View className='qBtn' onClick={calcShimen}>查询</View>
-        </View>
-        {smRes && <View className='resBox'>{smRes}</View>}
-      </View>
+        {/* 修炼计算 */}
+        {tool === 'xiulian' && (
+        <View className='cardBox'>
+          <View className='cardTitle'>修炼计算</View>
+          <View className='fLabel'>类型</View>
+          <Picker mode='selector' range={XIULIAN_TYPES.map(t => t[1])} value={xlTypeIdx} onChange={e => setXlTypeIdx(Number(e.detail.value))}>
+            <View className='pickerBox'>{XIULIAN_TYPES[xlTypeIdx][1]} <Text className='caret'>▾</Text></View>
+          </Picker>
+          <View className='fLabel'>修炼等级范围</View>
+          <View className='row'>
+            <Input className='numInput' type='number' placeholder='目前(0-25)' value={xlFrom} onInput={e => setXlFrom(numOnly(e.detail.value))} />
+            <Text className='arrow'>→</Text>
+            <Input className='numInput' type='number' placeholder='目标(0-25)' value={xlTo} onInput={e => setXlTo(numOnly(e.detail.value))} />
+            <View className='qBtn' onClick={calcXiulian}>查询</View>
+          </View>
+          {xlRes && <View className='resBox'>{xlRes}</View>}
+        </View>)}
 
-      {/* 帮派技能计算 */}
-      <View className='cardBox'>
-        <View className='cardTitle'>帮派技能计算</View>
-        <View className='fLabel'>技能</View>
-        <Picker mode='selector' range={BANGPAI_SKILLS.map(s => `${s[1]}（上限 ${s[2]}）`)} value={bpIdx}
-          onChange={e => { setBpIdx(Number(e.detail.value)); setBpRes(null) }}>
-          <View className='pickerBox'>{BANGPAI_SKILLS[bpIdx][1]}（上限 {BANGPAI_SKILLS[bpIdx][2]}） <Text className='caret'>▾</Text></View>
-        </Picker>
-        <View className='fLabel'>技能等级范围</View>
-        <View className='row'>
-          <Input className='numInput' type='number' placeholder='目前等级' value={bpFrom} onInput={e => setBpFrom(numOnly(e.detail.value))} />
-          <Text className='arrow'>→</Text>
-          <Input className='numInput' type='number' placeholder='目标等级' value={bpTo} onInput={e => setBpTo(numOnly(e.detail.value))} />
-          <View className='qBtn' onClick={calcBangpai}>查询</View>
-        </View>
-        {bpRes && <View className='resBox'>{bpRes}</View>}
-      </View>
+        {/* 师门技能计算 */}
+        {tool === 'shimen' && (
+        <View className='cardBox'>
+          <View className='cardTitle'>师门技能计算</View>
+          <View className='fLabel'>技能等级范围（0-180）</View>
+          <View className='row'>
+            <Input className='numInput' type='number' placeholder='当前等级' value={smFrom} onInput={e => setSmFrom(numOnly(e.detail.value))} />
+            <Text className='arrow'>→</Text>
+            <Input className='numInput' type='number' placeholder='到达等级' value={smTo} onInput={e => setSmTo(numOnly(e.detail.value))} />
+            <View className='qBtn' onClick={calcShimen}>查询</View>
+          </View>
+          {smRes && <View className='resBox'>{smRes}</View>}
+        </View>)}
 
-      {/* 召唤兽修炼计算 */}
-      <View className='cardBox'>
-        <View className='cardTitle'>召唤兽修炼计算</View>
-        <View className='fLabel'>修炼等级范围（0-25）</View>
-        <View className='row'>
-          <Input className='numInput' type='number' placeholder='目前等级' value={pxFrom} onInput={e => setPxFrom(numOnly(e.detail.value))} />
-          <Text className='arrow'>→</Text>
-          <Input className='numInput' type='number' placeholder='目标等级' value={pxTo} onInput={e => setPxTo(numOnly(e.detail.value))} />
-          <View className='qBtn' onClick={calcPetXiulian}>查询</View>
-        </View>
-        {pxRes && <View className='resBox'>{pxRes}</View>}
-      </View>
+        {/* 帮派技能计算 */}
+        {tool === 'bangpai' && (
+        <View className='cardBox'>
+          <View className='cardTitle'>帮派技能计算</View>
+          <View className='fLabel'>技能</View>
+          <Picker mode='selector' range={BANGPAI_SKILLS.map(s => `${s[1]}（上限 ${s[2]}）`)} value={bpIdx}
+            onChange={e => { setBpIdx(Number(e.detail.value)); setBpRes(null) }}>
+            <View className='pickerBox'>{BANGPAI_SKILLS[bpIdx][1]}（上限 {BANGPAI_SKILLS[bpIdx][2]}） <Text className='caret'>▾</Text></View>
+          </Picker>
+          <View className='fLabel'>技能等级范围</View>
+          <View className='row'>
+            <Input className='numInput' type='number' placeholder='目前等级' value={bpFrom} onInput={e => setBpFrom(numOnly(e.detail.value))} />
+            <Text className='arrow'>→</Text>
+            <Input className='numInput' type='number' placeholder='目标等级' value={bpTo} onInput={e => setBpTo(numOnly(e.detail.value))} />
+            <View className='qBtn' onClick={calcBangpai}>查询</View>
+          </View>
+          {bpRes && <View className='resBox'>{bpRes}</View>}
+        </View>)}
 
-      {/* 召唤兽升级计算 */}
-      <View className='cardBox'>
-        <View className='cardTitle'>召唤兽升级计算</View>
-        <View className='fLabel'>召唤兽等级范围（1-180）</View>
-        <View className='row'>
-          <Input className='numInput' type='number' placeholder='当前等级' value={psFrom} onInput={e => setPsFrom(numOnly(e.detail.value))} />
-          <Text className='arrow'>→</Text>
-          <Input className='numInput' type='number' placeholder='目标等级' value={psTo} onInput={e => setPsTo(numOnly(e.detail.value))} />
-          <View className='qBtn' onClick={calcPetShengji}>查询</View>
+        {/* 召唤兽修炼计算 */}
+        {tool === 'petxl' && (
+        <View className='cardBox'>
+          <View className='cardTitle'>召唤兽修炼计算</View>
+          <View className='fLabel'>修炼等级范围（0-25）</View>
+          <View className='row'>
+            <Input className='numInput' type='number' placeholder='目前等级' value={pxFrom} onInput={e => setPxFrom(numOnly(e.detail.value))} />
+            <Text className='arrow'>→</Text>
+            <Input className='numInput' type='number' placeholder='目标等级' value={pxTo} onInput={e => setPxTo(numOnly(e.detail.value))} />
+            <View className='qBtn' onClick={calcPetXiulian}>查询</View>
+          </View>
+          {pxRes && <View className='resBox'>{pxRes}</View>}
+        </View>)}
+
+        {/* 召唤兽升级计算 */}
+        {tool === 'petsj' && (
+        <View className='cardBox'>
+          <View className='cardTitle'>召唤兽升级计算</View>
+          <View className='fLabel'>召唤兽等级范围（1-180）</View>
+          <View className='row'>
+            <Input className='numInput' type='number' placeholder='当前等级' value={psFrom} onInput={e => setPsFrom(numOnly(e.detail.value))} />
+            <Text className='arrow'>→</Text>
+            <Input className='numInput' type='number' placeholder='目标等级' value={psTo} onInput={e => setPsTo(numOnly(e.detail.value))} />
+            <View className='qBtn' onClick={calcPetShengji}>查询</View>
+          </View>
+          {psRes && <View className='resBox'>{psRes}</View>}
+        </View>)}
         </View>
-        {psRes && <View className='resBox'>{psRes}</View>}
       </View>
     </View>
   )
