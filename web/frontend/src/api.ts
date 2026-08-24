@@ -184,6 +184,18 @@ export async function authLogout(): Promise<void> {
   setToken('')
 }
 
+// ---- 微信扫码登录（小程序码方案）：网页出码 → 微信扫 → 小程序确认 → 网页轮询 ----
+export interface QrCreate { scene: string; qr: string; expires_in: number }
+export async function qrCreate(): Promise<QrCreate> {
+  return jsonOrThrow(await fetch('/api/auth/qr/create', { method: 'POST' }))
+}
+export interface QrPoll { status: 'pending' | 'confirmed' | 'expired'; token?: string; user?: AuthUser }
+export async function qrPoll(scene: string): Promise<QrPoll> {
+  const r = await fetch(`/api/auth/qr/poll?scene=${encodeURIComponent(scene)}&_=${Date.now()}`)
+  if (!r.ok) throw new Error('HTTP ' + r.status)
+  return r.json()
+}
+
 // ---- 比价纯函数 ----
 export const fmt = (n: number) => '¥' + Number(n).toLocaleString('en-US')
 

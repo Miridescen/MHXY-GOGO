@@ -17,6 +17,7 @@ import os
 import re
 import json
 import time
+import base64
 import hmac
 import sqlite3
 import hashlib
@@ -1050,6 +1051,96 @@ def auth_mp_login(body: MpLoginBody):
     db.commit()
     db.close()
     return {"ok": True, "token": token, "user": _user_public(row)}
+
+
+# ---- 网页微信扫码登录（小程序码方案）----
+# 网页出小程序码 → 用户微信扫 → 打开小程序确认页 → 小程序带登录态确认 → 网页轮询到同一账号的 token。
+# 复用小程序 openid 账号(wx_openid)，无需微信开放平台/UnionID。
+QR_TTL = 300                        # 扫码会话有效期(秒)
+QR_PAGE = "pages/qrlogin/index"     # 小程序里的确认登录页
+WX_MP_ENV = os.environ.get("WX_MP_ENV", "release")   # 小程序码环境: release(已发布)/trial/develop
+_qr_sessions = {}                   # scene -> {status, token, user, exp}
+_wx_token_cache = {"token": "", "exp": 0.0}
+
+
+def _wx_access_token() -> str:
+    appid, secret = os.environ.get("WX_APPID", ""), os.environ.get("WX_SECRET", "")
+    if not appid or not secret:
+        raise HTTPException(503, "微信未配置（WX_APPID / WX_SECRET）")
+    if _wx_token_cache["token"] and _now() < _wx_token_cache["exp"]:
+        return _wx_token_cache["token"]
+    d = _http_json("https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential"
+                   f"&appid={appid}&secret={secret}")
+    tok = d.get("access_token")
+    if not tok:
+        raise HTTPException(502, f"取 access_token 失败：{d.get('errmsg', d)}")
+    _wx_token_cache["token"] = tok
+    _wx_token_cache["exp"] = _now() + int(d.get("expires_in", 7200)) - 300
+    return tok
+
+
+def _wx_qrcode_png(scene: str) -> bytes:
+    """生成小程序码(getUnlimited)。⚠️ env_version=release 需小程序已发布，否则微信返回错误。"""
+    tok = _wx_access_token()
+    payload = json.dumps({"scene": scene, "page": QR_PAGE, "check_path": False,
+                          "env_version": WX_MP_ENV}).encode("utf-8")
+    req_ = urllib.request.Request(
+        "https://api.weixin.qq.com/wxa/getwxacodeunlimit?access_token=" + tok,
+        data=payload, headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req_, timeout=10) as r:
+        data = r.read()
+    if data[:1] == b"{":   # 出错时微信返回 JSON 而非图片
+        raise HTTPException(502, "生成小程序码失败：" + data.decode("utf-8", "ignore"))
+    return data
+
+
+def _qr_prune():
+    now = _now()
+    for k in [k for k, v in _qr_sessions.items() if v["exp"] < now]:
+        _qr_sessions.pop(k, None)
+
+
+class QrConfirmBody(BaseModel):
+    scene: str
+
+
+@app.post("/api/auth/qr/create")
+def auth_qr_create():
+    _qr_prune()
+    scene = secrets.token_hex(8)   # 16 hex 字符，满足小程序码 scene 限制
+    png = _wx_qrcode_png(scene)
+    _qr_sessions[scene] = {"status": "pending", "token": None, "user": None, "exp": _now() + QR_TTL}
+    return {"scene": scene, "qr": "data:image/png;base64," + base64.b64encode(png).decode(),
+            "expires_in": QR_TTL}
+
+
+@app.get("/api/auth/qr/poll")
+def auth_qr_poll(scene: str = ""):
+    _qr_prune()
+    s = _qr_sessions.get(scene)
+    if not s:
+        return {"status": "expired"}
+    if s["status"] == "confirmed":
+        _qr_sessions.pop(scene, None)   # 一次性取走
+        return {"status": "confirmed", "token": s["token"], "user": s["user"]}
+    return {"status": s["status"]}
+
+
+@app.post("/api/auth/qr/confirm")
+def auth_qr_confirm(body: QrConfirmBody, x_auth_token: str = Header(default="")):
+    _qr_prune()
+    s = _qr_sessions.get(body.scene.strip())
+    if not s:
+        raise HTTPException(400, "二维码已过期，请在网页重新获取")
+    db = conn()
+    user = _require_user(db, x_auth_token)   # 小程序当前登录用户（wx_openid 账号）
+    token = _new_session(db, user["id"])     # 给网页发一个同一用户的 token
+    db.commit()
+    db.close()
+    s["status"] = "confirmed"
+    s["token"] = token
+    s["user"] = _user_public(user)
+    return {"ok": True}
 
 
 # ---- 邮箱验证码注册（腾讯云 SES 发送；凭证走环境变量，未配置时返回清晰提示）----

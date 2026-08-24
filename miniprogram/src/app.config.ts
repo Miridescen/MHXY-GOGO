@@ -1,5 +1,5 @@
 export default defineAppConfig({
-  pages: ['pages/index/index', 'pages/catch/index', 'pages/goods/index', 'pages/calc/index'],
+  pages: ['pages/index/index', 'pages/catch/index', 'pages/goods/index', 'pages/calc/index', 'pages/qrlogin/index'],
   window: {
     backgroundTextStyle: 'light',
     navigationBarBackgroundColor: '#faf6ee',

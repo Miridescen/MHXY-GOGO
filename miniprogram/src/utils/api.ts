@@ -103,6 +103,9 @@ export async function mpLogin(): Promise<AuthUser> {
   return d.user
 }
 
+// 网页扫码登录：小程序确认，把网页那次扫码会话绑定到本人账号
+export const qrConfirm = (scene: string) => req<{ ok: boolean }>('/api/auth/qr/confirm', 'POST', { scene })
+
 // 确保已登录：有 token 先验有效性，无效/没有则静默登录；失败返回 null
 export async function ensureLogin(): Promise<AuthUser | null> {
   if (getToken()) {

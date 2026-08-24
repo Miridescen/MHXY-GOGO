@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { Routes, Route, NavLink, useNavigate, Link } from 'react-router-dom'
 import { EXP_TABLE, XIULIAN, XIULIAN_TYPES, SHIMEN, BANGPAI, BANGPAI_SKILLS, PET_XIULIAN_CUM, petExpStep, type XlStep } from './calcData'
-import { fetchOverview, fmt, addCatchLog, fetchCatchLogs, startCatchTask, endCatchTask, fetchCatchTasks, fetchCatchStats, fetchScenePets, fetchGoods, fetchGoodsPrices, saveGoodsPrices, addCustomGood, deleteCustomGood, addGoodsCategory, deleteGoodsCategory, authLogin, authRegisterEmail, sendEmailCode, authMe, authLogout, CHANNEL_LABEL, type AuthUser, type Overview, type Region, type Roles, type RoleCell, type Equip, type EquipGroup, type CatchLog, type CatchTask, type CatchStat, type SceneGroup, type GoodsCategory } from './api'
+import { fetchOverview, fmt, addCatchLog, fetchCatchLogs, startCatchTask, endCatchTask, fetchCatchTasks, fetchCatchStats, fetchScenePets, fetchGoods, fetchGoodsPrices, saveGoodsPrices, addCustomGood, deleteCustomGood, addGoodsCategory, deleteGoodsCategory, authLogin, authRegisterEmail, sendEmailCode, authMe, authLogout, qrCreate, qrPoll, setToken, CHANNEL_LABEL, type AuthUser, type Overview, type Region, type Roles, type RoleCell, type Equip, type EquipGroup, type CatchLog, type CatchTask, type CatchStat, type SceneGroup, type GoodsCategory } from './api'
 
 const S: Record<string, CSSProperties> = {
   topbar: { position: 'fixed', top: 0, left: 0, right: 0, zIndex: 40, background: '#faf6eecc', backdropFilter: 'saturate(1.2) blur(8px)', borderBottom: '1px solid #ece2cf' },
@@ -177,6 +177,57 @@ function RoleMatrix({ roles }: { roles: Roles }) {
   )
 }
 
+// 微信扫码登录：网页出小程序码 → 微信扫 → 小程序里确认 → 网页轮询到同一账号
+function QrLogin({ onAuth }: { onAuth: (u: AuthUser) => void }) {
+  const nav = useNavigate()
+  const [open, setOpen] = useState(false)
+  const [qr, setQr] = useState('')
+  const [err, setErr] = useState('')
+  const sceneRef = useRef('')
+  const timerRef = useRef<number | null>(null)
+  const stop = () => { if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null } }
+
+  const start = async () => {
+    setErr(''); setOpen(true); setQr('')
+    try {
+      const d = await qrCreate()
+      setQr(d.qr); sceneRef.current = d.scene
+      stop()
+      timerRef.current = window.setInterval(async () => {
+        try {
+          const p = await qrPoll(sceneRef.current)
+          if (p.status === 'confirmed' && p.token && p.user) { stop(); setToken(p.token); onAuth(p.user); nav('/') }
+          else if (p.status === 'expired') { stop(); setErr('二维码已过期，点下方刷新') }
+        } catch { /* 轮询抖动忽略 */ }
+      }, 2000)
+    } catch (e) { setErr((e as Error).message || '获取二维码失败') }
+  }
+  useEffect(() => () => stop(), [])
+
+  return (
+    <div style={{ marginTop: 18, paddingTop: 18, borderTop: '1px solid #f0e7d6', textAlign: 'center' }}>
+      {!open ? (
+        <button className="btnH" onClick={start}
+          style={{ fontSize: 13.5, fontWeight: 800, color: '#07803a', background: '#eaf7ee', border: '1px solid #bfe6cc', borderRadius: 8, padding: '10px 18px', cursor: 'pointer', fontFamily: 'inherit' }}>
+          微信扫码登录（用过小程序的用户）
+        </button>
+      ) : (
+        <div>
+          <div style={{ fontSize: 12.5, color: '#8a7a5c', marginBottom: 10 }}>用微信扫码 → 在小程序里点「确认登录」</div>
+          {qr
+            ? <img src={qr} alt="微信扫码登录" style={{ width: 180, height: 180, borderRadius: 10, border: '1px solid #ece2cf' }} />
+            : <div style={{ padding: '60px 0', color: '#b0a48c', fontSize: 13 }}>生成二维码中…</div>}
+          {err && <div style={{ marginTop: 10, color: '#c1452e', fontSize: 13, fontWeight: 700 }}>{err}</div>}
+          <div style={{ marginTop: 10 }}>
+            <button className="btnH" onClick={start}
+              style={{ fontSize: 12.5, fontWeight: 700, color: '#8a7a5c', background: 'transparent', border: '1px solid #e0d2b8', borderRadius: 7, padding: '6px 14px', cursor: 'pointer', fontFamily: 'inherit' }}>刷新二维码</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // 登录 / 注册 页面（注册=邮箱验证码；网页注册为「普通」渠道；微信/抖音渠道由小程序端创建）
 function AuthView({ mode, onAuth }: { mode: 'login' | 'register'; onAuth: (u: AuthUser) => void }) {
   const nav = useNavigate()
@@ -284,6 +335,7 @@ function AuthView({ mode, onAuth }: { mode: 'login' | 'register'; onAuth: (u: Au
         </div>
         {err && <div style={{ marginTop: 12, fontSize: 13, fontWeight: 700, color: '#c1452e' }}>{err}</div>}
         {tip && !err && <div style={{ marginTop: 12, fontSize: 13, fontWeight: 700, color: '#3a7a5a' }}>{tip}</div>}
+        {isLogin && <QrLogin onAuth={onAuth} />}
         <div style={{ marginTop: 18, fontSize: 13, color: '#8a7a5c', textAlign: 'center' }}>
           {isLogin
             ? <>没有账号？<Link to="/register" style={{ color: '#c1452e', fontWeight: 700 }}>去注册</Link></>
