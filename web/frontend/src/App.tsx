@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { Routes, Route, NavLink, useNavigate, Link } from 'react-router-dom'
 import { EXP_TABLE, XIULIAN, XIULIAN_TYPES, SHIMEN, BANGPAI, BANGPAI_SKILLS, PET_XIULIAN_CUM, petExpStep, type XlStep } from './calcData'
-import { fetchOverview, fmt, addCatchLog, fetchCatchLogs, startCatchTask, endCatchTask, fetchCatchTasks, fetchCatchStats, fetchScenePets, fetchGoods, fetchGoodsPrices, saveGoodsPrices, addCustomGood, deleteCustomGood, addGoodsCategory, deleteGoodsCategory, authLogin, authRegisterEmail, sendEmailCode, authMe, authLogout, qrCreate, qrPoll, setToken, CHANNEL_LABEL, type AuthUser, type Overview, type Region, type Roles, type RoleCell, type Equip, type EquipGroup, type CatchLog, type CatchTask, type CatchStat, type SceneGroup, type GoodsCategory } from './api'
+import { fetchOverview, fmt, addCatchLog, fetchCatchLogs, startCatchTask, endCatchTask, fetchCatchTasks, fetchCatchStats, fetchScenePets, fetchGoods, fetchGoodsPrices, saveGoodsPrices, addCustomGood, deleteCustomGood, addGoodsCategory, deleteGoodsCategory, authLogin, authRegisterEmail, sendEmailCode, authMe, authLogout, updateNickname, qrCreate, qrPoll, setToken, CHANNEL_LABEL, type AuthUser, type Overview, type Region, type Roles, type RoleCell, type Equip, type EquipGroup, type CatchLog, type CatchTask, type CatchStat, type SceneGroup, type GoodsCategory } from './api'
 
 const S: Record<string, CSSProperties> = {
   topbar: { position: 'fixed', top: 0, left: 0, right: 0, zIndex: 40, background: '#faf6eecc', backdropFilter: 'saturate(1.2) blur(8px)', borderBottom: '1px solid #ece2cf' },
@@ -1047,6 +1047,17 @@ export default function App() {
   const [authReady, setAuthReady] = useState(false)
   useEffect(() => { authMe().then(setUser).catch(() => { /* ignore */ }).finally(() => setAuthReady(true)) }, [])
   const doLogout = async () => { await authLogout(); setUser(null) }
+  const [editName, setEditName] = useState(false)
+  const [nameVal, setNameVal] = useState('')
+  const [nameBusy, setNameBusy] = useState(false)
+  const saveName = async () => {
+    const n = nameVal.trim()
+    if (!n) { setEditName(false); return }
+    setNameBusy(true)
+    try { setUser(await updateNickname(n)); setEditName(false) }
+    catch (e) { alert((e as Error).message || '改名失败') }
+    setNameBusy(false)
+  }
   const topbarRef = useRef<HTMLDivElement>(null)
   const [topbarH, setTopbarH] = useState(73)   // header 固定后占位高度（窄屏换行时自适应）
 
@@ -1092,7 +1103,22 @@ export default function App() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
             {user ? (
               <>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#2a221a' }}>{user.nickname}</span>
+                {editName ? (
+                  <>
+                    <input value={nameVal} maxLength={20} autoFocus onChange={e => setNameVal(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') setEditName(false) }}
+                      style={{ width: 130, height: 28, fontSize: 13, padding: '0 8px', border: '1px solid #c1452e', borderRadius: 6, fontFamily: 'inherit', outline: 'none' }} />
+                    <button className="btnH" onClick={saveName} disabled={nameBusy}
+                      style={{ fontSize: 12, fontWeight: 700, color: '#fff', background: nameBusy ? '#d9cdbb' : '#c1452e', border: 'none', borderRadius: 6, padding: '5px 11px', cursor: 'pointer', fontFamily: 'inherit' }}>{nameBusy ? '…' : '保存'}</button>
+                    <button className="btnH" onClick={() => setEditName(false)}
+                      style={{ fontSize: 12, fontWeight: 700, color: '#8a7a5c', background: 'transparent', border: '1px solid #e0d2b8', borderRadius: 6, padding: '5px 8px', cursor: 'pointer', fontFamily: 'inherit' }}>取消</button>
+                  </>
+                ) : (
+                  <span onClick={() => { setNameVal(user.nickname); setEditName(true) }} title="点击修改昵称"
+                    style={{ fontSize: 13, fontWeight: 700, color: '#2a221a', cursor: 'pointer', borderBottom: '1px dashed #c9bda3' }}>
+                    {user.nickname} <span style={{ fontSize: 11, color: '#a89878' }}>✎</span>
+                  </span>
+                )}
                 <span style={{ fontSize: 10, fontWeight: 700, color: '#fff', padding: '2px 8px', borderRadius: 9,
                   background: user.channel === 'wechat' ? '#07c160' : user.channel === 'douyin' ? '#161823' : '#8a7a5c' }}>
                   {CHANNEL_LABEL[user.channel] || user.channel}

@@ -2,7 +2,7 @@ import { View, Text, Input, Picker } from '@tarojs/components'
 import Taro from '@tarojs/taro'
 import { useEffect, useState } from 'react'
 import {
-  fetchScenePets, fetchCatchTasks, startCatchTask, endCatchTask, fetchCatchLogs, addCatchLog, fetchCatchStats, ensureLogin,
+  fetchScenePets, fetchCatchTasks, startCatchTask, endCatchTask, fetchCatchLogs, addCatchLog, fetchCatchStats, updateNickname, ensureLogin,
   type SceneGroup, type CatchTask, type CatchLog, type CatchStat, type AuthUser
 } from '../../utils/api'
 import './index.scss'
@@ -121,6 +121,15 @@ export default function CatchPage() {
     ensureLogin().then(u => { setUser(u); if (u) { loadTasks(); loadStats() } }).finally(() => setAuthReady(true))
   }
 
+  const rename = () => {
+    Taro.showModal({ title: '修改昵称', editable: true, placeholderText: '1-20 个字符', content: user ? user.nickname : '' } as any).then((r: any) => {
+      if (!r.confirm) return
+      const n = (r.content || '').trim()
+      if (!n) return
+      updateNickname(n).then(u => { setUser(u); toast('已改名') }).catch(e => toast('改名失败：' + (e as Error).message))
+    })
+  }
+
   if (!authReady) return <View className='page'><View className='cardBox loginTip'>登录中…</View></View>
   if (!user) return (
     <View className='page'>
@@ -148,7 +157,7 @@ export default function CatchPage() {
         ) : (
           <Text className='statusOff'>当前无进行中的任务，点「开始」开启一次</Text>
         )}
-        <View className='userLine'>{user.nickname} · {user.channel === 'wechat' ? '微信' : user.channel === 'douyin' ? '抖音' : '普通'}渠道</View>
+        <View className='userLine' onClick={rename}>{user.nickname} ✎ · {user.channel === 'wechat' ? '微信' : user.channel === 'douyin' ? '抖音' : '普通'}渠道（点击改名）</View>
       </View>
 
       {/* 录入表单 */}

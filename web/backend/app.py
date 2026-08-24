@@ -1143,6 +1143,25 @@ def auth_qr_confirm(body: QrConfirmBody, x_auth_token: str = Header(default=""))
     return {"ok": True}
 
 
+# ---- 自定义昵称 ----
+class NicknameBody(BaseModel):
+    nickname: str
+
+
+@app.post("/api/auth/nickname")
+def auth_set_nickname(body: NicknameBody, x_auth_token: str = Header(default="")):
+    name = body.nickname.strip()
+    if not (1 <= len(name) <= 20):
+        raise HTTPException(400, "昵称需 1-20 个字符")
+    db = conn()
+    user = _require_user(db, x_auth_token)
+    db.execute("UPDATE user SET nickname=? WHERE id=?", (name, user["id"]))
+    db.commit()
+    row = db.execute("SELECT * FROM user WHERE id=?", (user["id"],)).fetchone()
+    db.close()
+    return {"ok": True, "user": _user_public(row)}
+
+
 # ---- 邮箱验证码注册（腾讯云 SES 发送；凭证走环境变量，未配置时返回清晰提示）----
 EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
 CODE_TTL_MIN = 10          # 验证码有效期(分钟)

@@ -178,6 +178,11 @@ export async function authMe(): Promise<AuthUser | null> {
   if (!r.ok) { if (r.status === 401) setToken(''); return null }
   return (await r.json()).user
 }
+export async function updateNickname(nickname: string): Promise<AuthUser> {
+  const d = await jsonOrThrow(await fetch('/api/auth/nickname', { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ nickname }) }))
+  return d.user
+}
+
 export async function authLogout(): Promise<void> {
   const t = getToken()
   if (t) await fetch('/api/auth/logout', { method: 'POST', headers: { 'X-Auth-Token': t } }).catch(() => { /* ignore */ })
