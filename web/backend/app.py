@@ -123,7 +123,12 @@ def build_overview():
     role_mounts = build_role_mounts(db)
     equip = build_equip(db)
     db.close()
-    last = max((i["latestDate"] for i in items), default=None)
+    # generated_at = 页面实际展示数据(角色/锦衣/坐骑/装备 + 物品)里最新的日期。
+    # 注意: 召唤兽/物品已不在比价页展示、也不再爬取, 不能只取 items 日期(会永远停在最后一次爬宝宝那天)。
+    last = max((d for d in (
+        max((i["latestDate"] for i in items), default=None),
+        roles.get("date"), role_clothes.get("date"), role_mounts.get("date"), equip.get("date"),
+    ) if d), default=None)
     return {"generated_at": last or "", "served_at": dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
             "regions": regions_list, "items": items, "roles": roles,
             "roleClothes": role_clothes, "roleMounts": role_mounts, "equip": equip}
