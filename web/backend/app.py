@@ -1162,6 +1162,134 @@ def auth_set_nickname(body: NicknameBody, x_auth_token: str = Header(default="")
     return {"ok": True, "user": _user_public(row)}
 
 
+# ---- 记账：角色 + 记账条目（收入/支出），按用户隔离 ----
+def _ensure_ledger_tables(db):
+    db.execute("""CREATE TABLE IF NOT EXISTS ledger_role(
+        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER,
+        name TEXT, created_at TEXT)""")
+    db.execute("""CREATE TABLE IF NOT EXISTS ledger_entry(
+        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, role_id INTEGER,
+        kind TEXT, amount REAL, note TEXT, created_at TEXT)""")
+
+
+class LedgerRoleBody(BaseModel):
+    name: str
+
+
+class LedgerRoleDelBody(BaseModel):
+    role_id: int
+
+
+class LedgerEntryBody(BaseModel):
+    role_id: int
+    kind: str          # income | expense
+    amount: float
+    note: str = ""
+
+
+class LedgerEntryDelBody(BaseModel):
+    entry_id: int
+
+
+@app.get("/api/ledger/roles")
+def ledger_roles(x_auth_token: str = Header(default="")):
+    db = conn()
+    _ensure_ledger_tables(db)
+    user = _require_user(db, x_auth_token)
+    rows = db.execute("SELECT * FROM ledger_role WHERE user_id=? ORDER BY id", (user["id"],)).fetchall()
+    out = []
+    for r in rows:
+        agg = db.execute("""SELECT
+                COALESCE(SUM(CASE WHEN kind='income'  THEN amount ELSE 0 END), 0) inc,
+                COALESCE(SUM(CASE WHEN kind='expense' THEN amount ELSE 0 END), 0) exp,
+                COUNT(*) cnt
+            FROM ledger_entry WHERE role_id=? AND user_id=?""", (r["id"], user["id"])).fetchone()
+        out.append({"id": r["id"], "name": r["name"],
+                    "income": agg["inc"], "expense": agg["exp"],
+                    "net": agg["inc"] - agg["exp"], "count": agg["cnt"]})
+    db.close()
+    return {"roles": out}
+
+
+@app.post("/api/ledger/role")
+def ledger_role_add(body: LedgerRoleBody, x_auth_token: str = Header(default="")):
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(400, "角色名不能为空")
+    if len(name) > 20:
+        raise HTTPException(400, "角色名最多 20 字")
+    db = conn()
+    _ensure_ledger_tables(db)
+    user = _require_user(db, x_auth_token)
+    if db.execute("SELECT 1 FROM ledger_role WHERE user_id=? AND name=?", (user["id"], name)).fetchone():
+        db.close()
+        raise HTTPException(400, "该角色已存在")
+    cur = db.execute("INSERT INTO ledger_role(user_id,name,created_at) VALUES(?,?,?)",
+                     (user["id"], name, _server_now()))
+    db.commit()
+    rid = cur.lastrowid
+    db.close()
+    return {"ok": True, "id": rid}
+
+
+@app.post("/api/ledger/role_delete")
+def ledger_role_delete(body: LedgerRoleDelBody, x_auth_token: str = Header(default="")):
+    db = conn()
+    _ensure_ledger_tables(db)
+    user = _require_user(db, x_auth_token)
+    db.execute("DELETE FROM ledger_entry WHERE role_id=? AND user_id=?", (body.role_id, user["id"]))
+    db.execute("DELETE FROM ledger_role WHERE id=? AND user_id=?", (body.role_id, user["id"]))
+    db.commit()
+    db.close()
+    return {"ok": True}
+
+
+@app.get("/api/ledger/entries")
+def ledger_entries(role_id: int = 0, x_auth_token: str = Header(default="")):
+    db = conn()
+    _ensure_ledger_tables(db)
+    user = _require_user(db, x_auth_token)
+    rows = db.execute("SELECT * FROM ledger_entry WHERE role_id=? AND user_id=? ORDER BY id DESC",
+                      (role_id, user["id"])).fetchall()
+    out = [{"id": r["id"], "kind": r["kind"], "amount": r["amount"],
+            "note": r["note"], "created_at": r["created_at"]} for r in rows]
+    db.close()
+    return {"rows": out}
+
+
+@app.post("/api/ledger/entry")
+def ledger_entry_add(body: LedgerEntryBody, x_auth_token: str = Header(default="")):
+    if body.kind not in ("income", "expense"):
+        raise HTTPException(400, "kind 应为 income 或 expense")
+    amt = round(float(body.amount), 2)
+    if amt < 0:
+        raise HTTPException(400, "金额不能为负")
+    note = (body.note or "").strip()[:50]
+    db = conn()
+    _ensure_ledger_tables(db)
+    user = _require_user(db, x_auth_token)
+    if not db.execute("SELECT 1 FROM ledger_role WHERE id=? AND user_id=?", (body.role_id, user["id"])).fetchone():
+        db.close()
+        raise HTTPException(400, "角色不存在")
+    cur = db.execute("INSERT INTO ledger_entry(user_id,role_id,kind,amount,note,created_at) VALUES(?,?,?,?,?,?)",
+                     (user["id"], body.role_id, body.kind, amt, note, _server_now()))
+    db.commit()
+    eid = cur.lastrowid
+    db.close()
+    return {"ok": True, "id": eid}
+
+
+@app.post("/api/ledger/entry_delete")
+def ledger_entry_delete(body: LedgerEntryDelBody, x_auth_token: str = Header(default="")):
+    db = conn()
+    _ensure_ledger_tables(db)
+    user = _require_user(db, x_auth_token)
+    db.execute("DELETE FROM ledger_entry WHERE id=? AND user_id=?", (body.entry_id, user["id"]))
+    db.commit()
+    db.close()
+    return {"ok": True}
+
+
 # ---- 邮箱验证码注册（腾讯云 SES 发送；凭证走环境变量，未配置时返回清晰提示）----
 EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
 CODE_TTL_MIN = 10          # 验证码有效期(分钟)

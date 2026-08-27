@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { Routes, Route, NavLink, useNavigate, Link } from 'react-router-dom'
 import { EXP_TABLE, XIULIAN, XIULIAN_TYPES, SHIMEN, BANGPAI, BANGPAI_SKILLS, PET_XIULIAN_CUM, petExpStep, type XlStep } from './calcData'
-import { fetchOverview, fmt, addCatchLog, fetchCatchLogs, startCatchTask, endCatchTask, fetchCatchTasks, fetchCatchStats, fetchScenePets, fetchGoods, fetchGoodsPrices, saveGoodsPrices, addCustomGood, deleteCustomGood, addGoodsCategory, deleteGoodsCategory, authLogin, authRegisterEmail, sendEmailCode, authMe, authLogout, updateNickname, qrCreate, qrPoll, setToken, CHANNEL_LABEL, type AuthUser, type Overview, type Region, type Roles, type RoleCell, type Equip, type EquipGroup, type CatchLog, type CatchTask, type CatchStat, type SceneGroup, type GoodsCategory } from './api'
+import { fetchOverview, fmt, addCatchLog, fetchCatchLogs, startCatchTask, endCatchTask, fetchCatchTasks, fetchCatchStats, fetchScenePets, fetchGoods, fetchGoodsPrices, saveGoodsPrices, addCustomGood, deleteCustomGood, addGoodsCategory, deleteGoodsCategory, authLogin, authRegisterEmail, sendEmailCode, authMe, authLogout, updateNickname, qrCreate, qrPoll, setToken, fetchLedgerRoles, addLedgerRole, deleteLedgerRole, fetchLedgerEntries, addLedgerEntry, deleteLedgerEntry, CHANNEL_LABEL, type AuthUser, type Overview, type Region, type Roles, type RoleCell, type Equip, type EquipGroup, type CatchLog, type CatchTask, type CatchStat, type SceneGroup, type GoodsCategory, type LedgerRole, type LedgerEntry } from './api'
 
 const S: Record<string, CSSProperties> = {
   topbar: { position: 'fixed', top: 0, left: 0, right: 0, zIndex: 40, background: '#faf6eecc', backdropFilter: 'saturate(1.2) blur(8px)', borderBottom: '1px solid #ece2cf' },
@@ -1040,6 +1040,160 @@ function CatchLogView() {
   )
 }
 
+// 记账：先建角色 → 角色下记收入/支出 → 汇总净额（收入−支出）
+function LedgerView() {
+  const [roles, setRoles] = useState<LedgerRole[]>([])
+  const [sel, setSel] = useState(0)
+  const [entries, setEntries] = useState<LedgerEntry[]>([])
+  const [newRole, setNewRole] = useState('')
+  const [kind, setKind] = useState<'income' | 'expense'>('income')
+  const [amount, setAmount] = useState('')
+  const [note, setNote] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const numOnly = (v: string) => v.replace(/[^\d.]/g, '').slice(0, 12)
+
+  const loadRoles = (keep?: number) => fetchLedgerRoles().then(rs => {
+    setRoles(rs)
+    setSel(prev => { const want = keep ?? prev; return rs.some(r => r.id === want) ? want : (rs[0]?.id || 0) })
+  }).catch(() => { /* ignore */ })
+  useEffect(() => { loadRoles() }, [])
+  useEffect(() => { if (sel) fetchLedgerEntries(sel).then(setEntries).catch(() => { /* ignore */ }); else setEntries([]) }, [sel])
+
+  const cur = roles.find(r => r.id === sel)
+  const totalNet = roles.reduce((s, r) => s + r.net, 0)
+
+  const doAddRole = async () => {
+    const n = newRole.trim(); if (!n) return
+    try {
+      await addLedgerRole(n); setNewRole('')
+      const rs = await fetchLedgerRoles(); setRoles(rs)
+      const added = rs.find(r => r.name === n); if (added) setSel(added.id)
+    } catch (e) { setMsg({ ok: false, text: (e as Error).message }) }
+  }
+  const doDelRole = async (r: LedgerRole) => {
+    if (!window.confirm(`删除角色「${r.name}」？其下 ${r.count} 条记账会一并删除`)) return
+    try { await deleteLedgerRole(r.id); await loadRoles() } catch (e) { setMsg({ ok: false, text: (e as Error).message }) }
+  }
+  const doAddEntry = async () => {
+    if (!sel) { setMsg({ ok: false, text: '请先添加/选择角色' }); return }
+    const a = Number(amount)
+    if (amount === '' || !isFinite(a) || a < 0) { setMsg({ ok: false, text: '请输入有效金额' }); return }
+    setBusy(true); setMsg(null)
+    try {
+      await addLedgerEntry({ role_id: sel, kind, amount: a, note: note.trim() })
+      setAmount(''); setNote('')
+      await Promise.all([fetchLedgerEntries(sel).then(setEntries), loadRoles(sel)])
+      setMsg({ ok: true, text: '已记一笔 ✓' })
+    } catch (e) { setMsg({ ok: false, text: (e as Error).message }) }
+    setBusy(false)
+  }
+  const doDelEntry = async (id: number) => {
+    try { await deleteLedgerEntry(id); await Promise.all([fetchLedgerEntries(sel).then(setEntries), loadRoles(sel)]) }
+    catch (e) { setMsg({ ok: false, text: (e as Error).message }) }
+  }
+
+  const card: CSSProperties = { background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 14, padding: 20 }
+  const label: CSSProperties = { fontSize: 13, fontWeight: 700, color: '#5a4a34', marginBottom: 6, display: 'block' }
+  const kindBtn = (on: boolean, c: string): CSSProperties => ({ flex: 1, padding: '9px 0', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', borderRadius: 8, fontFamily: 'inherit', border: '1px solid ' + (on ? c : '#e0d4bd'), background: on ? c : '#fff', color: on ? '#fff' : '#6a5a44' })
+
+  return (
+    <div style={{ display: 'flex', gap: 22, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+      {/* 左：角色列表 + 新增角色 */}
+      <div style={{ flex: '0 1 320px', minWidth: 280 }}>
+        <div style={{ ...card, marginBottom: 16 }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: '#2a221a', marginBottom: 12 }}>角色</div>
+          {roles.length === 0 && <div style={{ fontSize: 13, color: '#a89878', marginBottom: 12 }}>还没有角色，下面添加一个开始记账</div>}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+            {roles.map(r => (
+              <div key={r.id} onClick={() => setSel(r.id)}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '10px 12px', borderRadius: 10, cursor: 'pointer', border: '1px solid ' + (r.id === sel ? '#c1452e' : '#ece2cf'), background: r.id === sel ? '#fbeee8' : '#fff' }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#2a221a' }}>{r.name}</div>
+                  <div style={{ fontSize: 11, color: '#a89878', marginTop: 2 }}>{r.count} 笔 · 净 <span style={{ color: r.net >= 0 ? '#3a7a5a' : '#c1452e', fontWeight: 700 }}>{fmt(r.net)}</span></div>
+                </div>
+                <span onClick={e => { e.stopPropagation(); doDelRole(r) }} title="删除角色" style={{ fontSize: 15, color: '#b0a48c', fontWeight: 700 }}>×</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input value={newRole} onChange={e => setNewRole(e.target.value)} placeholder="新角色名，如 大号" className="ctl"
+              onKeyDown={e => { if (e.key === 'Enter') doAddRole() }} />
+            <button className="btnH" onClick={doAddRole}
+              style={{ flexShrink: 0, padding: '0 16px', fontSize: 13.5, fontWeight: 800, color: '#fff', background: '#3a7a5a', border: 'none', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}>添加</button>
+          </div>
+        </div>
+        {roles.length > 0 && (
+          <div style={{ ...card, textAlign: 'center' }}>
+            <div style={{ fontSize: 12, color: '#a89878', marginBottom: 4 }}>全部角色合计净额</div>
+            <div className="serif" style={{ fontSize: 22, fontWeight: 900, color: totalNet >= 0 ? '#3a7a5a' : '#c1452e' }}>{fmt(totalNet)}</div>
+          </div>
+        )}
+      </div>
+
+      {/* 右：当前角色的汇总 + 记一笔 + 明细 */}
+      <div style={{ flex: '1 1 420px', minWidth: 300 }}>
+        {!cur ? (
+          <div style={{ ...card, textAlign: 'center', color: '#a89878', padding: '50px 20px' }}>先在左侧添加一个角色</div>
+        ) : (
+          <>
+            {/* 汇总 */}
+            <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+              {([['总收入', cur.income, '#3a7a5a'], ['总支出', cur.expense, '#c1452e'], ['净额', cur.net, cur.net >= 0 ? '#3a7a5a' : '#c1452e']] as const).map(([t, v, c]) => (
+                <div key={t} style={{ ...card, flex: 1, minWidth: 130, padding: 16, textAlign: 'center' }}>
+                  <div style={{ fontSize: 12, color: '#a89878', marginBottom: 6 }}>{t}</div>
+                  <div className="serif" style={{ fontSize: 20, fontWeight: 900, color: c }}>{fmt(v)}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* 记一笔 */}
+            <div style={{ ...card, marginBottom: 16 }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: '#2a221a', marginBottom: 14 }}>给「{cur.name}」记一笔</div>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                <button className="btnH" onClick={() => setKind('income')} style={kindBtn(kind === 'income', '#3a7a5a')}>收入</button>
+                <button className="btnH" onClick={() => setKind('expense')} style={kindBtn(kind === 'expense', '#c1452e')}>支出</button>
+              </div>
+              <div style={{ display: 'flex', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+                <div style={{ flex: '1 1 120px' }}>
+                  <label style={label}>金额</label>
+                  <input value={amount} onChange={e => setAmount(numOnly(e.target.value))} inputMode="decimal" placeholder="0.00" className="ctl" />
+                </div>
+                <div style={{ flex: '2 1 180px' }}>
+                  <label style={label}>备注 <span style={{ color: '#a89878', fontWeight: 400 }}>（可选）</span></label>
+                  <input value={note} onChange={e => setNote(e.target.value)} placeholder="如 卖装备 / 买兽决" className="ctl"
+                    onKeyDown={e => { if (e.key === 'Enter') doAddEntry() }} />
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <button className="btnH" onClick={doAddEntry} disabled={busy}
+                  style={{ padding: '10px 26px', fontSize: 13.5, fontWeight: 800, color: '#fff', background: busy ? '#d9cdbb' : '#c1452e', border: 'none', borderRadius: 8, cursor: busy ? 'default' : 'pointer', fontFamily: 'inherit' }}>{busy ? '记录中…' : '记一笔'}</button>
+                {msg && <span style={{ fontSize: 13, fontWeight: 700, color: msg.ok ? '#3a7a5a' : '#c1452e' }}>{msg.text}</span>}
+              </div>
+            </div>
+
+            {/* 明细 */}
+            <div style={card}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: '#2a221a', marginBottom: 12 }}>明细（{entries.length}）</div>
+              {entries.length === 0 ? (
+                <div style={{ fontSize: 13, color: '#a89878' }}>还没有记录，上面记第一笔吧</div>
+              ) : entries.map(en => (
+                <div key={en.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderTop: '1px solid #f3ead9' }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: '#fff', padding: '2px 7px', borderRadius: 7, background: en.kind === 'income' ? '#3a7a5a' : '#c1452e' }}>{en.kind === 'income' ? '收入' : '支出'}</span>
+                  <span className="serif" style={{ fontSize: 15, fontWeight: 900, color: en.kind === 'income' ? '#3a7a5a' : '#c1452e', minWidth: 90 }}>{en.kind === 'income' ? '+' : '−'}{fmt(en.amount)}</span>
+                  <span style={{ flex: 1, fontSize: 13, color: '#5a4a34' }}>{en.note || '—'}</span>
+                  <span style={{ fontSize: 11, color: '#a89878' }}>{(en.created_at || '').slice(5, 16)}</span>
+                  <span onClick={() => doDelEntry(en.id)} title="删除" style={{ fontSize: 14, color: '#b0a48c', cursor: 'pointer', fontWeight: 700 }}>×</span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
   const [data, setData] = useState<Overview | null>(null)
   const [err, setErr] = useState('')
@@ -1094,7 +1248,7 @@ export default function App() {
           </div>
           {/* 顶部导航（路由切换页面） */}
           <nav style={{ display: 'flex', gap: 4, marginLeft: 10 }}>
-            {([['/', '比价'], ['/catch', '场景记录'], ['/goods', '物品价格'], ['/calc', '计算器']] as const).map(([to, label]) => (
+            {([['/', '比价'], ['/catch', '场景记录'], ['/goods', '物品价格'], ['/ledger', '记账'], ['/calc', '计算器']] as const).map(([to, label]) => (
               <NavLink key={to} to={to} end
                 style={({ isActive }) => ({ padding: '8px 15px', fontSize: 14, fontWeight: 800, textDecoration: 'none', borderRadius: 8, color: isActive ? '#fff' : '#8a7a5c', background: isActive ? '#c1452e' : 'transparent' })}>{label}</NavLink>
             ))}
@@ -1169,6 +1323,17 @@ export default function App() {
               <div style={{ maxWidth: 400, margin: '40px auto 0', background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 14, padding: 30, textAlign: 'center' }}>
                 <div style={{ fontSize: 16, fontWeight: 800, color: '#2a221a', marginBottom: 10 }}>物品价格需要登录后使用</div>
                 <div style={{ fontSize: 13, color: '#a89878', marginBottom: 20 }}>每位用户按区服维护自己的价格标签</div>
+                <Link to="/login" style={{ display: 'inline-block', textDecoration: 'none', fontSize: 14, fontWeight: 800, color: '#fff', background: '#c1452e', borderRadius: 8, padding: '11px 30px' }}>去登录 / 注册</Link>
+              </div>
+            )
+          } />
+          <Route path="/ledger" element={
+            !authReady ? <div style={{ textAlign: 'center', padding: '60px 0', color: '#b0a48c' }}>加载中…</div>
+            : user ? <LedgerView />
+            : (
+              <div style={{ maxWidth: 400, margin: '40px auto 0', background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 14, padding: 30, textAlign: 'center' }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#2a221a', marginBottom: 10 }}>记账需要登录后使用</div>
+                <div style={{ fontSize: 13, color: '#a89878', marginBottom: 20 }}>每位用户的角色和记账相互独立</div>
                 <Link to="/login" style={{ display: 'inline-block', textDecoration: 'none', fontSize: 14, fontWeight: 800, color: '#fff', background: '#c1452e', borderRadius: 8, padding: '11px 30px' }}>去登录 / 注册</Link>
               </div>
             )

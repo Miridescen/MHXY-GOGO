@@ -201,6 +201,32 @@ export async function qrPoll(scene: string): Promise<QrPoll> {
   return r.json()
 }
 
+// ---- 记账（角色 + 收入/支出条目）----
+export interface LedgerRole { id: number; name: string; income: number; expense: number; net: number; count: number }
+export interface LedgerEntry { id: number; kind: 'income' | 'expense'; amount: number; note: string; created_at: string }
+export async function fetchLedgerRoles(): Promise<LedgerRole[]> {
+  const r = await fetch('/api/ledger/roles?_=' + Date.now(), { headers: authHeaders() })
+  if (!r.ok) throw new Error('HTTP ' + r.status)
+  return (await r.json()).roles
+}
+export async function addLedgerRole(name: string): Promise<void> {
+  await jsonOrThrow(await fetch('/api/ledger/role', { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ name }) }))
+}
+export async function deleteLedgerRole(role_id: number): Promise<void> {
+  await jsonOrThrow(await fetch('/api/ledger/role_delete', { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ role_id }) }))
+}
+export async function fetchLedgerEntries(role_id: number): Promise<LedgerEntry[]> {
+  const r = await fetch(`/api/ledger/entries?role_id=${role_id}&_=${Date.now()}`, { headers: authHeaders() })
+  if (!r.ok) throw new Error('HTTP ' + r.status)
+  return (await r.json()).rows
+}
+export async function addLedgerEntry(body: { role_id: number; kind: 'income' | 'expense'; amount: number; note: string }): Promise<void> {
+  await jsonOrThrow(await fetch('/api/ledger/entry', { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(body) }))
+}
+export async function deleteLedgerEntry(entry_id: number): Promise<void> {
+  await jsonOrThrow(await fetch('/api/ledger/entry_delete', { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ entry_id }) }))
+}
+
 // ---- 比价纯函数 ----
 export const fmt = (n: number) => '¥' + Number(n).toLocaleString('en-US')
 

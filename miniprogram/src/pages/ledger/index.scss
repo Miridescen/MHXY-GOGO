@@ -1,0 +1,46 @@
+.page { padding: 24px 24px 60px; }
+.cardBox { background: #fdfaf3; border: 1px solid #ece2cf; border-radius: 22px; padding: 24px; margin-bottom: 24px; }
+
+.loginTip { text-align: center; padding: 60px 40px; font-size: 26px; color: #a89878; }
+.loginTitle { font-size: 30px; font-weight: 800; color: #2a221a; margin-bottom: 14px; }
+.loginDesc { font-size: 23px; color: #a89878; }
+
+.barTitle { font-size: 27px; font-weight: 800; color: #2a221a; margin-bottom: 16px; }
+.emptyTip { text-align: center; color: #a89878; font-size: 24px; padding: 50px 20px; }
+.emptyLine { font-size: 23px; color: #a89878; }
+
+/* 角色 */
+.roleScroll { white-space: nowrap; }
+.roleChip { display: inline-flex; align-items: center; gap: 10px; padding: 14px 24px; margin-right: 14px; font-size: 25px; font-weight: 700; color: #6a5a44; background: #f5ecdd; border-radius: 14px; }
+.roleChip.roleOn { color: #fff; background: #c1452e; }
+.roleChip.roleAdd { color: #a8351f; background: transparent; border: 1px dashed #d0b98f; }
+.delX { font-size: 26px; line-height: 1; opacity: .7; }
+
+/* 汇总 */
+.sumRow { display: flex; gap: 16px; margin-bottom: 24px; }
+.sumCell { flex: 1; background: #fdfaf3; border: 1px solid #ece2cf; border-radius: 18px; padding: 22px 10px; text-align: center; }
+.sumLabel { display: block; font-size: 21px; color: #a89878; margin-bottom: 8px; }
+.sumVal { font-size: 30px; font-weight: 900; }
+.inc { color: #3a7a5a; }
+.exp { color: #c1452e; }
+
+/* 记一笔 */
+.kindRow { display: flex; gap: 16px; margin-bottom: 18px; }
+.kindBtn { flex: 1; text-align: center; padding: 18px 0; font-size: 26px; font-weight: 700; border-radius: 14px; border: 1px solid #e0d4bd; background: #fff; color: #6a5a44; }
+.kindBtn.kindInc { background: #3a7a5a; border-color: #3a7a5a; color: #fff; }
+.kindBtn.kindExp { background: #c1452e; border-color: #c1452e; color: #fff; }
+.fLabel { font-size: 24px; font-weight: 700; color: #5a4a34; margin: 18px 0 12px; }
+.numInput { background: #fff; border: 1px solid #e2d6bf; border-radius: 14px; padding: 18px 20px; font-size: 26px; color: #2a221a; height: auto; }
+.submitBtn { margin-top: 28px; text-align: center; padding: 22px 0; border-radius: 14px; font-size: 28px; font-weight: 800; color: #fff; background: #c1452e; }
+.submitBtn.off { background: #d9cdbb; }
+.submitBtn:active { opacity: .85; }
+
+/* 明细 */
+.entryRow { display: flex; align-items: center; gap: 14px; padding: 16px 0; border-top: 1px solid #f3ead9; }
+.eTag { font-size: 19px; font-weight: 700; color: #fff; padding: 4px 12px; border-radius: 10px; flex-shrink: 0; }
+.tInc { background: #3a7a5a; }
+.tExp { background: #c1452e; }
+.eAmt { font-size: 27px; font-weight: 900; flex-shrink: 0; min-width: 150px; }
+.eNote { flex: 1; font-size: 22px; color: #5a4a34; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.eTime { font-size: 19px; color: #a89878; flex-shrink: 0; }
+.delX2 { font-size: 30px; color: #b0a48c; font-weight: 700; flex-shrink: 0; padding-left: 8px; }

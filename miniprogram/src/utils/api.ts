@@ -145,6 +145,16 @@ export const fetchGoodsPrices = (serverid: number) =>
 export const saveGoodsPrices = (body: { serverid: number; server_name: string; area_name: string; prices: { goods_id: number; price: number | null }[] }) =>
   req<{ ok: boolean; saved: number; cleared: number }>('/api/goods_prices', 'POST', body)
 
+// ---- 记账（角色 + 收入/支出条目）----
+export interface LedgerRole { id: number; name: string; income: number; expense: number; net: number; count: number }
+export interface LedgerEntry { id: number; kind: 'income' | 'expense'; amount: number; note: string; created_at: string }
+export const fetchLedgerRoles = () => req<{ roles: LedgerRole[] }>('/api/ledger/roles?_=' + Date.now()).then(d => d.roles)
+export const addLedgerRole = (name: string) => req<{ ok: boolean; id: number }>('/api/ledger/role', 'POST', { name })
+export const deleteLedgerRole = (role_id: number) => req<{ ok: boolean }>('/api/ledger/role_delete', 'POST', { role_id })
+export const fetchLedgerEntries = (role_id: number) => req<{ rows: LedgerEntry[] }>(`/api/ledger/entries?role_id=${role_id}&_=${Date.now()}`).then(d => d.rows)
+export const addLedgerEntry = (body: { role_id: number; kind: 'income' | 'expense'; amount: number; note: string }) => req<{ ok: boolean; id: number }>('/api/ledger/entry', 'POST', body)
+export const deleteLedgerEntry = (entry_id: number) => req<{ ok: boolean }>('/api/ledger/entry_delete', 'POST', { entry_id })
+
 // ---- 纯函数 ----
 export function fmt(n: number | null | undefined): string {
   if (n == null || isNaN(Number(n))) return ''
