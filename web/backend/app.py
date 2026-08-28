@@ -885,6 +885,9 @@ def _ensure_user_tables(db):
         created_at TEXT, last_login TEXT)""")
     if "email" not in [r[1] for r in db.execute("PRAGMA table_info(user)")]:
         db.execute("ALTER TABLE user ADD COLUMN email TEXT")
+    # wx_openid：微信/抖音 openid 绑定列，支持把第三方登录绑到已有账号（账号合并）
+    if "wx_openid" not in [r[1] for r in db.execute("PRAGMA table_info(user)")]:
+        db.execute("ALTER TABLE user ADD COLUMN wx_openid TEXT")
     db.execute("""CREATE TABLE IF NOT EXISTS user_session(
         token TEXT PRIMARY KEY, user_id INTEGER,
         created_at TEXT, expires_at TEXT)""")
@@ -1037,16 +1040,21 @@ def auth_mp_login(body: MpLoginBody):
     username = prefix + openid
     db = conn()
     _ensure_user_tables(db)
-    row = db.execute("SELECT * FROM user WHERE username=?", (username,)).fetchone()
     now = _server_now()
-    if not row:
-        salt = secrets.token_hex(16)
-        db.execute("INSERT INTO user(username,password_hash,salt,nickname,channel,created_at,last_login) VALUES(?,?,?,?,?,?,?)",
-                   (username, _pw_hash(secrets.token_hex(16), salt), salt,
-                    nick_prefix + openid[-4:], channel, now, now))
-        row = db.execute("SELECT * FROM user WHERE username=?", (username,)).fetchone()
-    else:
+    # 优先按 openid 绑定找账号（把微信/抖音登录绑到已有账号 = 账号合并）；再退回按用户名找/建
+    row = db.execute("SELECT * FROM user WHERE wx_openid=?", (openid,)).fetchone()
+    if row:
         db.execute("UPDATE user SET last_login=? WHERE id=?", (now, row["id"]))
+    else:
+        row = db.execute("SELECT * FROM user WHERE username=?", (username,)).fetchone()
+        if not row:
+            salt = secrets.token_hex(16)
+            db.execute("INSERT INTO user(username,password_hash,salt,nickname,channel,created_at,last_login,wx_openid) VALUES(?,?,?,?,?,?,?,?)",
+                       (username, _pw_hash(secrets.token_hex(16), salt), salt,
+                        nick_prefix + openid[-4:], channel, now, now, openid))
+            row = db.execute("SELECT * FROM user WHERE username=?", (username,)).fetchone()
+        else:
+            db.execute("UPDATE user SET wx_openid=?, last_login=? WHERE id=?", (openid, now, row["id"]))
     token = _new_session(db, row["id"])
     db.commit()
     db.close()
