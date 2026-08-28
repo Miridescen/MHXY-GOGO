@@ -215,6 +215,9 @@ export async function addLedgerRole(name: string): Promise<void> {
 export async function deleteLedgerRole(role_id: number): Promise<void> {
   await jsonOrThrow(await fetch('/api/ledger/role_delete', { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ role_id }) }))
 }
+export async function renameLedgerRole(role_id: number, name: string): Promise<void> {
+  await jsonOrThrow(await fetch('/api/ledger/role_rename', { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ role_id, name }) }))
+}
 export async function fetchLedgerEntries(role_id: number): Promise<LedgerEntry[]> {
   const r = await fetch(`/api/ledger/entries?role_id=${role_id}&_=${Date.now()}`, { headers: authHeaders() })
   if (!r.ok) throw new Error('HTTP ' + r.status)

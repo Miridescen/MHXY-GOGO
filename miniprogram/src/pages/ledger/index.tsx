@@ -2,7 +2,7 @@ import { View, Text, Input, ScrollView } from '@tarojs/components'
 import Taro from '@tarojs/taro'
 import { useEffect, useState } from 'react'
 import {
-  fetchLedgerRoles, addLedgerRole, deleteLedgerRole, fetchLedgerEntries, addLedgerEntry, deleteLedgerEntry, fmt, ensureLogin,
+  fetchLedgerRoles, addLedgerRole, deleteLedgerRole, renameLedgerRole, fetchLedgerEntries, addLedgerEntry, deleteLedgerEntry, fmt, ensureLogin,
   type LedgerRole, type LedgerEntry, type AuthUser
 } from '../../utils/api'
 import './index.scss'
@@ -49,6 +49,14 @@ export default function LedgerPage() {
       deleteLedgerRole(r.id).then(() => loadRoles()).then(() => toast('已删除', 'success')).catch(e => toast((e as Error).message))
     })
   }
+  const doRenameRole = (r: LedgerRole) => {
+    Taro.showModal({ title: '角色改名', editable: true, placeholderText: '新角色名', content: r.name } as any).then((res: any) => {
+      if (!res.confirm) return
+      const n = (res.content || '').trim()
+      if (!n || n === r.name) return
+      renameLedgerRole(r.id, n).then(() => loadRoles(r.id)).then(() => toast('已改名', 'success')).catch(e => toast((e as Error).message))
+    })
+  }
   const doAddEntry = () => {
     if (!sel) { toast('请先添加/选择角色'); return }
     const a = Number(amount)
@@ -82,6 +90,7 @@ export default function LedgerPage() {
           {roles.map(r => (
             <View key={r.id} className={'roleChip ' + (r.id === sel ? 'roleOn' : '')} onClick={() => setSel(r.id)}>
               <Text>{r.name}</Text>
+              <Text className='renX' onClick={e => { e.stopPropagation(); doRenameRole(r) }}>✎</Text>
               <Text className='delX' onClick={e => { e.stopPropagation(); doDelRole(r) }}>×</Text>
             </View>
           ))}

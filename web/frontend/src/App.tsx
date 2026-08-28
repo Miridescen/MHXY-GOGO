@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { Routes, Route, NavLink, useNavigate, Link } from 'react-router-dom'
 import { EXP_TABLE, XIULIAN, XIULIAN_TYPES, SHIMEN, BANGPAI, BANGPAI_SKILLS, PET_XIULIAN_CUM, petExpStep, type XlStep } from './calcData'
-import { fetchOverview, fmt, addCatchLog, fetchCatchLogs, startCatchTask, endCatchTask, fetchCatchTasks, fetchCatchStats, fetchScenePets, fetchGoods, fetchGoodsPrices, saveGoodsPrices, addCustomGood, deleteCustomGood, addGoodsCategory, deleteGoodsCategory, authLogin, authRegisterEmail, sendEmailCode, authMe, authLogout, updateNickname, qrCreate, qrPoll, setToken, fetchLedgerRoles, addLedgerRole, deleteLedgerRole, fetchLedgerEntries, addLedgerEntry, deleteLedgerEntry, CHANNEL_LABEL, type AuthUser, type Overview, type Region, type Roles, type RoleCell, type Equip, type EquipGroup, type CatchLog, type CatchTask, type CatchStat, type SceneGroup, type GoodsCategory, type LedgerRole, type LedgerEntry } from './api'
+import { fetchOverview, fmt, addCatchLog, fetchCatchLogs, startCatchTask, endCatchTask, fetchCatchTasks, fetchCatchStats, fetchScenePets, fetchGoods, fetchGoodsPrices, saveGoodsPrices, addCustomGood, deleteCustomGood, addGoodsCategory, deleteGoodsCategory, authLogin, authRegisterEmail, sendEmailCode, authMe, authLogout, updateNickname, qrCreate, qrPoll, setToken, fetchLedgerRoles, addLedgerRole, deleteLedgerRole, renameLedgerRole, fetchLedgerEntries, addLedgerEntry, deleteLedgerEntry, CHANNEL_LABEL, type AuthUser, type Overview, type Region, type Roles, type RoleCell, type Equip, type EquipGroup, type CatchLog, type CatchTask, type CatchStat, type SceneGroup, type GoodsCategory, type LedgerRole, type LedgerEntry } from './api'
 
 const S: Record<string, CSSProperties> = {
   topbar: { position: 'fixed', top: 0, left: 0, right: 0, zIndex: 40, background: '#faf6eecc', backdropFilter: 'saturate(1.2) blur(8px)', borderBottom: '1px solid #ece2cf' },
@@ -1075,6 +1075,13 @@ function LedgerView() {
     if (!window.confirm(`删除角色「${r.name}」？其下 ${r.count} 条记账会一并删除`)) return
     try { await deleteLedgerRole(r.id); await loadRoles() } catch (e) { setMsg({ ok: false, text: (e as Error).message }) }
   }
+  const doRenameRole = async (r: LedgerRole) => {
+    const n = window.prompt(`把角色「${r.name}」改成：`, r.name)
+    if (n == null) return
+    const name = n.trim()
+    if (!name || name === r.name) return
+    try { await renameLedgerRole(r.id, name); await loadRoles(r.id) } catch (e) { setMsg({ ok: false, text: (e as Error).message }) }
+  }
   const doAddEntry = async () => {
     if (!sel) { setMsg({ ok: false, text: '请先添加/选择角色' }); return }
     const a = Number(amount)
@@ -1112,7 +1119,10 @@ function LedgerView() {
                   <div style={{ fontSize: 14, fontWeight: 700, color: '#2a221a' }}>{r.name}</div>
                   <div style={{ fontSize: 11, color: '#a89878', marginTop: 2 }}>{r.count} 笔 · 净 <span style={{ color: r.net >= 0 ? '#3a7a5a' : '#c1452e', fontWeight: 700 }}>{fmt(r.net)}</span></div>
                 </div>
-                <span onClick={e => { e.stopPropagation(); doDelRole(r) }} title="删除角色" style={{ fontSize: 15, color: '#b0a48c', fontWeight: 700 }}>×</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                  <span onClick={e => { e.stopPropagation(); doRenameRole(r) }} title="改名" style={{ fontSize: 13, color: '#a89878', cursor: 'pointer' }}>✎</span>
+                  <span onClick={e => { e.stopPropagation(); doDelRole(r) }} title="删除角色" style={{ fontSize: 15, color: '#b0a48c', fontWeight: 700, cursor: 'pointer' }}>×</span>
+                </div>
               </div>
             ))}
           </div>

@@ -1252,6 +1252,30 @@ def ledger_role_delete(body: LedgerRoleDelBody, x_auth_token: str = Header(defau
     return {"ok": True}
 
 
+class LedgerRoleRenameBody(BaseModel):
+    role_id: int
+    name: str
+
+
+@app.post("/api/ledger/role_rename")
+def ledger_role_rename(body: LedgerRoleRenameBody, x_auth_token: str = Header(default="")):
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(400, "角色名不能为空")
+    if len(name) > 20:
+        raise HTTPException(400, "角色名最多 20 字")
+    db = conn()
+    _ensure_ledger_tables(db)
+    user = _require_user(db, x_auth_token)
+    if db.execute("SELECT 1 FROM ledger_role WHERE user_id=? AND name=? AND id!=?", (user["id"], name, body.role_id)).fetchone():
+        db.close()
+        raise HTTPException(400, "该角色名已存在")
+    db.execute("UPDATE ledger_role SET name=? WHERE id=? AND user_id=?", (name, body.role_id, user["id"]))
+    db.commit()
+    db.close()
+    return {"ok": True}
+
+
 @app.get("/api/ledger/entries")
 def ledger_entries(role_id: int = 0, x_auth_token: str = Header(default="")):
     db = conn()

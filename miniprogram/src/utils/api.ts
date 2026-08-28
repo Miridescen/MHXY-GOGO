@@ -151,6 +151,7 @@ export interface LedgerEntry { id: number; kind: 'income' | 'expense'; amount: n
 export const fetchLedgerRoles = () => req<{ roles: LedgerRole[] }>('/api/ledger/roles?_=' + Date.now()).then(d => d.roles)
 export const addLedgerRole = (name: string) => req<{ ok: boolean; id: number }>('/api/ledger/role', 'POST', { name })
 export const deleteLedgerRole = (role_id: number) => req<{ ok: boolean }>('/api/ledger/role_delete', 'POST', { role_id })
+export const renameLedgerRole = (role_id: number, name: string) => req<{ ok: boolean }>('/api/ledger/role_rename', 'POST', { role_id, name })
 export const fetchLedgerEntries = (role_id: number) => req<{ rows: LedgerEntry[] }>(`/api/ledger/entries?role_id=${role_id}&_=${Date.now()}`).then(d => d.rows)
 export const addLedgerEntry = (body: { role_id: number; kind: 'income' | 'expense'; amount: number; note: string }) => req<{ ok: boolean; id: number }>('/api/ledger/entry', 'POST', body)
 export const deleteLedgerEntry = (entry_id: number) => req<{ ok: boolean }>('/api/ledger/entry_delete', 'POST', { entry_id })
