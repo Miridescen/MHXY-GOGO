@@ -1046,7 +1046,7 @@ function LedgerView() {
   const [sel, setSel] = useState(0)
   const [entries, setEntries] = useState<LedgerEntry[]>([])
   const [newRole, setNewRole] = useState('')
-  const [kind, setKind] = useState<'income' | 'expense'>('income')
+  const [kind, setKind] = useState<'income' | 'expense'>('expense')
   const [amount, setAmount] = useState('')
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
@@ -1084,6 +1084,7 @@ function LedgerView() {
   }
   const doAddEntry = async () => {
     if (!sel) { setMsg({ ok: false, text: '请先添加/选择角色' }); return }
+    if (!note.trim()) { setMsg({ ok: false, text: '请填写花费说明' }); return }
     const a = Number(amount)
     if (amount === '' || !isFinite(a) || a < 0) { setMsg({ ok: false, text: '请输入有效金额' }); return }
     setBusy(true); setMsg(null)
@@ -1161,17 +1162,18 @@ function LedgerView() {
             <div style={{ ...card, marginBottom: 16 }}>
               <div style={{ fontSize: 15, fontWeight: 800, color: '#2a221a', marginBottom: 14 }}>给「{cur.name}」记一笔</div>
               <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-                <button className="btnH" onClick={() => setKind('income')} style={kindBtn(kind === 'income', '#3a7a5a')}>收入</button>
                 <button className="btnH" onClick={() => setKind('expense')} style={kindBtn(kind === 'expense', '#c1452e')}>支出</button>
+                <button className="btnH" onClick={() => setKind('income')} style={kindBtn(kind === 'income', '#3a7a5a')}>收入</button>
               </div>
               <div style={{ display: 'flex', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+                <div style={{ flex: '2 1 180px' }}>
+                  <label style={label}>花费说明</label>
+                  <input value={note} onChange={e => setNote(e.target.value)} placeholder="如 买号 / 点卡 / 买兽决" className="ctl"
+                    onKeyDown={e => { if (e.key === 'Enter') doAddEntry() }} />
+                </div>
                 <div style={{ flex: '1 1 120px' }}>
                   <label style={label}>金额</label>
-                  <input value={amount} onChange={e => setAmount(numOnly(e.target.value))} inputMode="decimal" placeholder="0.00" className="ctl" />
-                </div>
-                <div style={{ flex: '2 1 180px' }}>
-                  <label style={label}>备注 <span style={{ color: '#a89878', fontWeight: 400 }}>（可选）</span></label>
-                  <input value={note} onChange={e => setNote(e.target.value)} placeholder="如 卖装备 / 买兽决" className="ctl"
+                  <input value={amount} onChange={e => setAmount(numOnly(e.target.value))} inputMode="decimal" placeholder="0.00" className="ctl"
                     onKeyDown={e => { if (e.key === 'Enter') doAddEntry() }} />
                 </div>
               </div>

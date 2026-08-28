@@ -15,7 +15,7 @@ export default function LedgerPage() {
   const [roles, setRoles] = useState<LedgerRole[]>([])
   const [sel, setSel] = useState(0)
   const [entries, setEntries] = useState<LedgerEntry[]>([])
-  const [kind, setKind] = useState<'income' | 'expense'>('income')
+  const [kind, setKind] = useState<'income' | 'expense'>('expense')
   const [amount, setAmount] = useState('')
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
@@ -59,6 +59,7 @@ export default function LedgerPage() {
   }
   const doAddEntry = () => {
     if (!sel) { toast('请先添加/选择角色'); return }
+    if (!note.trim()) { toast('请填写花费说明'); return }
     const a = Number(amount)
     if (amount === '' || !isFinite(a) || a < 0) { toast('请输入有效金额'); return }
     setBusy(true)
@@ -113,13 +114,13 @@ export default function LedgerPage() {
           <View className='cardBox'>
             <View className='barTitle'>给「{cur.name}」记一笔</View>
             <View className='kindRow'>
-              <View className={'kindBtn ' + (kind === 'income' ? 'kindInc' : '')} onClick={() => setKind('income')}>收入</View>
               <View className={'kindBtn ' + (kind === 'expense' ? 'kindExp' : '')} onClick={() => setKind('expense')}>支出</View>
+              <View className={'kindBtn ' + (kind === 'income' ? 'kindInc' : '')} onClick={() => setKind('income')}>收入</View>
             </View>
+            <View className='fLabel'>花费说明</View>
+            <Input className='numInput' placeholder='如 买号 / 点卡 / 买兽决' value={note} onInput={e => setNote(e.detail.value)} />
             <View className='fLabel'>金额</View>
             <Input className='numInput' type='digit' placeholder='0.00' value={amount} onInput={e => setAmount(numOnly(e.detail.value))} />
-            <View className='fLabel'>备注（可选）</View>
-            <Input className='numInput' placeholder='如 卖装备 / 买兽决' value={note} onInput={e => setNote(e.detail.value)} />
             <View className={'submitBtn ' + (busy ? 'off' : '')} onClick={() => !busy && doAddEntry()}>{busy ? '记录中…' : '记一笔'}</View>
           </View>
 

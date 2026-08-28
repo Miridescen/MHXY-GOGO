@@ -1297,6 +1297,8 @@ def ledger_entry_add(body: LedgerEntryBody, x_auth_token: str = Header(default="
     if amt < 0:
         raise HTTPException(400, "金额不能为负")
     note = (body.note or "").strip()[:50]
+    if not note:
+        raise HTTPException(400, "花费说明不能为空")
     db = conn()
     _ensure_ledger_tables(db)
     user = _require_user(db, x_auth_token)
