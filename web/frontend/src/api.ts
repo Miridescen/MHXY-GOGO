@@ -108,12 +108,27 @@ export async function fetchCatchLogs(taskId?: number): Promise<CatchLog[]> {
   return (await r.json()).rows
 }
 
-// 收益查询：日期范围内每种东西的数量
-export interface CatchStat { category: string; name: string; sub_type: string; count: number }
-export async function fetchCatchStats(start: string, end: string): Promise<{ start: string; end: string; rows: CatchStat[]; total: number }> {
+// 收益查询：日期范围内每种东西的数量 + 价值（联动物品价格）
+export interface CatchStat { category: string; name: string; sub_type: string; count: number; price: number | null; value: number | null }
+export interface CatchStatsResp { start: string; end: string; rows: CatchStat[]; total: number; rate: number | null; total_value_wan: number; total_rmb: number | null; unpriced: number }
+export async function fetchCatchStats(start: string, end: string): Promise<CatchStatsResp> {
   const r = await fetch(`/api/catch_stats?start=${start}&end=${end}&_=${Date.now()}`, { headers: authHeaders() })
   if (!r.ok) throw new Error('HTTP ' + r.status)
   return r.json()
+}
+
+// 物品价格（按抓取记录去重项定价，无区服）+ 梦幻币汇率
+export interface PriceItem { category: string; name: string; sub_type: string; label: string; count: number; price: number | null }
+export async function fetchCatchPrices(): Promise<{ rate: number | null; items: PriceItem[] }> {
+  const r = await fetch('/api/catch_price?_=' + Date.now(), { headers: authHeaders() })
+  if (!r.ok) throw new Error('HTTP ' + r.status)
+  return r.json()
+}
+export async function setCatchPrice(body: { category: string; name: string; sub_type: string; price: number | null }): Promise<void> {
+  await jsonOrThrow(await fetch('/api/catch_price/set', { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(body) }))
+}
+export async function setMhbRate(rate: number | null): Promise<void> {
+  await jsonOrThrow(await fetch('/api/catch_price/rate', { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ rate }) }))
 }
 
 // ---- 通用物品库 + 用户按区服自定义价格 ----

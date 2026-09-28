@@ -56,6 +56,16 @@
 .quickBtn { padding: 12px 24px; font-size: 22px; font-weight: 700; color: #6a5a44; background: #f5ecdd; border: 1px solid #e6dac4; border-radius: 12px; }
 .quickBtn:active { opacity: .8; }
 .statHint { font-size: 22px; color: #a89878; }
+/* 价值合计 */
+.valRow { display: flex; gap: 14px; margin-bottom: 14px; }
+.valCell { flex: 1; border-radius: 14px; padding: 16px 18px; }
+.valWan { background: #fbeee8; }
+.valRmb { background: #eaf7ee; }
+.valLabel { display: block; font-size: 19px; color: #a89878; margin-bottom: 6px; }
+.valNum { font-size: 30px; font-weight: 900; }
+.wanNum { color: #c1452e; }
+.rmbNum { color: #07803a; }
+.statValue { font-size: 19px; color: #8a7a5c; }
 .statTotal { font-size: 22px; color: #8a7a5c; margin: 6px 0 16px; }
 .statTotalNum { font-weight: 900; color: #c1452e; }
 .statChips { display: flex; flex-wrap: wrap; gap: 14px; }

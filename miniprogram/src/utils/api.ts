@@ -127,10 +127,18 @@ export const fetchCatchLogs = (taskId: number) => req<{ rows: CatchLog[] }>(`/ap
 export const addCatchLog = (body: { task_id: number; category: string; scene: string; name: string; sub_type: string; coord_x: string; coord_y: string; current_time: string }) =>
   req<{ ok: boolean; id: number }>('/api/catch_log', 'POST', body)
 
-// 收益查询：日期范围内每种东西的数量（与网站一致）
-export interface CatchStat { category: string; name: string; sub_type: string; count: number }
+// 收益查询：日期范围内每种东西的数量 + 价值（联动物品价格）
+export interface CatchStat { category: string; name: string; sub_type: string; count: number; price: number | null; value: number | null }
+export interface CatchStatsResp { start: string; end: string; rows: CatchStat[]; total: number; rate: number | null; total_value_wan: number; total_rmb: number | null; unpriced: number }
 export const fetchCatchStats = (start: string, end: string) =>
-  req<{ start: string; end: string; rows: CatchStat[]; total: number }>(`/api/catch_stats?start=${start}&end=${end}&_=${Date.now()}`)
+  req<CatchStatsResp>(`/api/catch_stats?start=${start}&end=${end}&_=${Date.now()}`)
+
+// 物品价格（按抓取记录去重项定价，无区服）+ 梦幻币汇率
+export interface PriceItem { category: string; name: string; sub_type: string; label: string; count: number; price: number | null }
+export const fetchCatchPrices = () => req<{ rate: number | null; items: PriceItem[] }>('/api/catch_price?_=' + Date.now())
+export const setCatchPrice = (body: { category: string; name: string; sub_type: string; price: number | null }) =>
+  req<{ ok: boolean }>('/api/catch_price/set', 'POST', body)
+export const setMhbRate = (rate: number | null) => req<{ ok: boolean }>('/api/catch_price/rate', 'POST', { rate })
 
 // ---- 通用物品库 + 用户按区服自定义价格（与网站一致）----
 export interface GoodsItem { id: number; name: string; custom?: boolean }

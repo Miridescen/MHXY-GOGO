@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { Routes, Route, NavLink, useNavigate, Link } from 'react-router-dom'
 import { EXP_TABLE, XIULIAN, XIULIAN_TYPES, SHIMEN, BANGPAI, BANGPAI_SKILLS, PET_XIULIAN_CUM, petExpStep, type XlStep } from './calcData'
-import { fetchOverview, fmt, addCatchLog, fetchCatchLogs, startCatchTask, endCatchTask, fetchCatchTasks, fetchCatchStats, fetchScenePets, fetchGoods, fetchGoodsPrices, saveGoodsPrices, addCustomGood, deleteCustomGood, addGoodsCategory, deleteGoodsCategory, authLogin, authRegisterEmail, sendEmailCode, authMe, authLogout, updateNickname, qrCreate, qrPoll, setToken, fetchLedgerRoles, addLedgerRole, deleteLedgerRole, renameLedgerRole, fetchLedgerEntries, addLedgerEntry, deleteLedgerEntry, CHANNEL_LABEL, type AuthUser, type Overview, type Region, type Roles, type RoleCell, type Equip, type EquipGroup, type CatchLog, type CatchTask, type CatchStat, type SceneGroup, type GoodsCategory, type LedgerRole, type LedgerEntry } from './api'
+import { fetchOverview, fmt, addCatchLog, fetchCatchLogs, startCatchTask, endCatchTask, fetchCatchTasks, fetchCatchStats, fetchScenePets, fetchCatchPrices, setCatchPrice, setMhbRate, authLogin, authRegisterEmail, sendEmailCode, authMe, authLogout, updateNickname, qrCreate, qrPoll, setToken, fetchLedgerRoles, addLedgerRole, deleteLedgerRole, renameLedgerRole, fetchLedgerEntries, addLedgerEntry, deleteLedgerEntry, CHANNEL_LABEL, type AuthUser, type Overview, type Roles, type RoleCell, type Equip, type EquipGroup, type CatchLog, type CatchTask, type CatchStat, type SceneGroup, type PriceItem, type LedgerRole, type LedgerEntry } from './api'
 
 const S: Record<string, CSSProperties> = {
   topbar: { position: 'fixed', top: 0, left: 0, right: 0, zIndex: 40, background: '#faf6eecc', backdropFilter: 'saturate(1.2) blur(8px)', borderBottom: '1px solid #ece2cf' },
@@ -616,176 +616,117 @@ function CalcView() {
 }
 
 // 物品价格：登录用户按区服给物品打价格标签（为收益金钱统计铺垫）
-function GoodsView({ regions, initDaqu, initServer }: { regions: Region[]; initDaqu: string; initServer: string }) {
-  const [cats, setCats] = useState<GoodsCategory[]>([])
-  const [cat, setCat] = useState('')
-  const [daqu, setDaqu] = useState(initDaqu)
-  const [server, setServer] = useState(initServer)
-  const [vals, setVals] = useState<Record<number, string>>({})       // 当前编辑值
-  const [loaded, setLoaded] = useState<Record<number, string>>({})   // 服务端已存值
+// 物品价格：从抓取记录去重项里选物品 → 填价格(万梦幻币) → 列在下面可改；+ 全局梦幻币汇率
+function PricingView() {
+  const [rate, setRate] = useState<number | null>(null)
+  const [rateInput, setRateInput] = useState('')
+  const [items, setItems] = useState<PriceItem[]>([])
+  const [selIdx, setSelIdx] = useState(0)
+  const [priceInput, setPriceInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [editing, setEditing] = useState<string | null>(null)
+  const [editVal, setEditVal] = useState('')
+  const numOnly = (v: string) => v.replace(/[^\d.]/g, '').slice(0, 12)
+  const keyOf = (i: PriceItem) => `${i.category}|${i.name}|${i.sub_type}`
 
-  const region = regions.find(r => r.daqu === daqu) || regions[0]
-  const servers = region?.servers || []
-  const sid = servers.find(s => s.name === server)?.serverid ?? servers[0]?.serverid
+  const load = () => fetchCatchPrices().then(d => {
+    setRate(d.rate); setRateInput(d.rate == null ? '' : String(d.rate)); setItems(d.items)
+  }).catch(e => setMsg({ ok: false, text: (e as Error).message }))
+  useEffect(() => { load() }, [])
+  void rate
 
-  // 自定义分类/物品
-  const [showNewCat, setShowNewCat] = useState(false)
-  const [newCatName, setNewCatName] = useState('')
-  const [newGoodName, setNewGoodName] = useState('')
+  const unpriced = items.filter(i => i.price == null)
+  const priced = items.filter(i => i.price != null)
 
-  const reloadGoods = (keepCat?: string) => fetchGoods().then(c => {
-    setCats(c)
-    const want = keepCat ?? cat
-    setCat(c.some(x => x.name === want) ? want : (c[0]?.name || ''))
-  }).catch(() => { /* ignore */ })
-
-  useEffect(() => { fetchGoods().then(c => { setCats(c); if (c[0]) setCat(c[0].name) }).catch(() => { /* ignore */ }) }, [])
-
-  const doAddCategory = async () => {
-    const n = newCatName.trim()
-    if (!n) return
-    try {
-      await addGoodsCategory(n)
-      setNewCatName(''); setShowNewCat(false)
-      await reloadGoods(n)
-      setMsg({ ok: true, text: `已添加分类「${n}」` })
-    } catch (e) { setMsg({ ok: false, text: (e as Error).message }) }
-  }
-  const doDelCategory = async (n: string) => {
-    if (!window.confirm(`删除分类「${n}」？该分类下你添加的物品及价格会一并删除`)) return
-    try { await deleteGoodsCategory(n); await reloadGoods(''); setMsg({ ok: true, text: `已删除分类「${n}」` }) }
+  const saveRate = async () => {
+    const v = rateInput.trim()
+    try { await setMhbRate(v === '' ? null : Number(v)); setMsg({ ok: true, text: '汇率已保存' }); await load() }
     catch (e) { setMsg({ ok: false, text: (e as Error).message }) }
   }
-  const doAddGood = async () => {
-    const n = newGoodName.trim()
-    if (!n || !cat) return
+  const addPrice = async () => {
+    const it = unpriced[selIdx]
+    if (!it) { setMsg({ ok: false, text: '没有可添加的物品' }); return }
+    const p = Number(priceInput)
+    if (priceInput === '' || !isFinite(p) || p < 0) { setMsg({ ok: false, text: '请输入有效价格' }); return }
+    setBusy(true)
     try {
-      await addCustomGood(n, cat)
-      setNewGoodName('')
-      await reloadGoods()
-      setMsg({ ok: true, text: `已添加「${n}」` })
+      await setCatchPrice({ category: it.category, name: it.name, sub_type: it.sub_type, price: p })
+      setPriceInput(''); setSelIdx(0); await load(); setMsg({ ok: true, text: `已设「${it.label}」价格` })
     } catch (e) { setMsg({ ok: false, text: (e as Error).message }) }
-  }
-  const doDelGood = async (id: number, n: string) => {
-    if (!window.confirm(`删除物品「${n}」？其价格标签会一并删除`)) return
-    try {
-      await deleteCustomGood(id)
-      const v = { ...vals }; delete v[id]; setVals(v)
-      const o = { ...loaded }; delete o[id]; setLoaded(o)
-      await reloadGoods()
-      setMsg({ ok: true, text: `已删除「${n}」` })
-    } catch (e) { setMsg({ ok: false, text: (e as Error).message }) }
-  }
-  useEffect(() => {
-    if (sid == null) return
-    fetchGoodsPrices(sid).then(p => {
-      const m: Record<number, string> = {}
-      Object.entries(p).forEach(([k, v]) => { m[Number(k)] = String(v) })
-      setVals(m); setLoaded(m); setMsg(null)
-    }).catch(() => { /* ignore */ })
-  }, [sid])
-
-  const pickDaqu = (d: string) => {
-    setDaqu(d)
-    const r = regions.find(x => x.daqu === d)
-    setServer(r?.servers[0]?.name || '')
-  }
-
-  const numOnly = (v: string) => v.replace(/[^\d.]/g, '').slice(0, 10)
-
-  const save = async () => {
-    const ids = new Set([...Object.keys(vals), ...Object.keys(loaded)].map(Number))
-    const changes: { goods_id: number; price: number | null }[] = []
-    ids.forEach(id => {
-      const v = (vals[id] ?? '').trim(), o = (loaded[id] ?? '').trim()
-      if (v === o) return
-      changes.push({ goods_id: id, price: v === '' ? null : Number(v) })
-    })
-    if (!changes.length) { setMsg({ ok: true, text: '没有修改' }); return }
-    if (changes.some(c => c.price != null && !isFinite(c.price))) { setMsg({ ok: false, text: '有价格不是有效数字' }); return }
-    setBusy(true); setMsg(null)
-    try {
-      const r = await saveGoodsPrices({ serverid: sid!, server_name: server, area_name: daqu, prices: changes })
-      setLoaded({ ...vals })
-      setMsg({ ok: true, text: `已保存 ${r.saved} 项${r.cleared ? `，清除 ${r.cleared} 项` : ''}` })
-    } catch (e) { setMsg({ ok: false, text: '保存失败：' + ((e as Error).message || e) }) }
     setBusy(false)
   }
+  const saveEdit = async (it: PriceItem) => {
+    const p = Number(editVal)
+    if (editVal === '' || !isFinite(p) || p < 0) { setMsg({ ok: false, text: '价格无效' }); return }
+    try { await setCatchPrice({ category: it.category, name: it.name, sub_type: it.sub_type, price: p }); setEditing(null); await load() }
+    catch (e) { setMsg({ ok: false, text: (e as Error).message }) }
+  }
+  const delPrice = async (it: PriceItem) => {
+    if (!window.confirm(`删除「${it.label}」的价格？`)) return
+    try { await setCatchPrice({ category: it.category, name: it.name, sub_type: it.sub_type, price: null }); await load() }
+    catch (e) { setMsg({ ok: false, text: (e as Error).message }) }
+  }
 
-  const curGoods = cats.find(c => c.name === cat)?.goods || []
-  const pricedCount = Object.values(vals).filter(v => (v ?? '').trim() !== '').length
+  const card: CSSProperties = { background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 14, padding: 20, marginBottom: 16 }
+  const label: CSSProperties = { fontSize: 13, fontWeight: 700, color: '#5a4a34', marginBottom: 6, display: 'block' }
 
   return (
-    <div style={{ maxWidth: 860 }}>
-      {/* 区服选择 + 保存 */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
-        <select value={daqu} onChange={e => pickDaqu(e.target.value)} className="ctl" style={{ width: 150 }}>
-          {regions.map(r => <option key={r.daqu} value={r.daqu}>{r.daqu}</option>)}
-        </select>
-        <select value={server} onChange={e => setServer(e.target.value)} className="ctl" style={{ width: 150 }}>
-          {servers.map(s => <option key={s.serverid} value={s.name}>{s.name}</option>)}
-        </select>
-        <button className="btnH" onClick={save} disabled={busy}
-          style={{ padding: '10px 26px', fontSize: 13.5, fontWeight: 800, color: '#fff', background: busy ? '#d9cdbb' : '#c1452e', border: 'none', borderRadius: 8, cursor: busy ? 'default' : 'pointer', fontFamily: 'inherit' }}>
-          {busy ? '保存中…' : '保存'}
-        </button>
-        {msg && <span style={{ fontSize: 13, fontWeight: 700, color: msg.ok ? '#3a7a5a' : '#c1452e' }}>{msg.text}</span>}
-      </div>
-      <div style={{ fontSize: 12, color: '#a89878', marginBottom: 14 }}>
-        价格与当前区服绑定，单位自定（建议统一用「万」）；已设 {pricedCount} 项。留空并保存 = 清除该价格。
+    <div style={{ maxWidth: 620 }}>
+      <div style={card}>
+        <label style={label}>梦幻币兑换比例</label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 13, color: '#6a5a44' }}>每 1 万梦幻币 =</span>
+          <input value={rateInput} onChange={e => setRateInput(numOnly(e.target.value))} inputMode="decimal" placeholder="如 0.28" className="ctl" style={{ width: 120 }} />
+          <span style={{ fontSize: 13, color: '#6a5a44' }}>元</span>
+          <button className="btnH" onClick={saveRate} style={{ padding: '9px 18px', fontSize: 13, fontWeight: 800, color: '#fff', background: '#c1452e', border: 'none', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}>保存</button>
+        </div>
+        <div style={{ fontSize: 11.5, color: '#a89878', marginTop: 8 }}>用于「场景记录 · 收益查询」把梦幻币价值折算成人民币</div>
       </div>
 
-      {/* 分类（自定义分类带 ×，可新增分类） */}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16 }}>
-        {cats.map(c => (
-          <button key={c.name} className="btnH" onClick={() => setCat(c.name)}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, padding: '7px 16px', borderRadius: 7, cursor: 'pointer', border: '1px solid transparent', fontFamily: 'inherit', ...(c.name === cat ? { color: '#fff', background: '#c1452e' } : { color: '#6a5a44', background: '#f5ecdd' }) }}>
-            {c.name}（{c.goods.length}）
-            {c.custom && <span onClick={e => { e.stopPropagation(); doDelCategory(c.name) }}
-              style={{ fontSize: 13, lineHeight: 1, opacity: .7 }} title="删除该分类">×</span>}
-          </button>
-        ))}
-        {showNewCat ? (
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            <input value={newCatName} onChange={e => setNewCatName(e.target.value)} placeholder="新分类名" autoFocus
-              onKeyDown={e => { if (e.key === 'Enter') doAddCategory(); if (e.key === 'Escape') setShowNewCat(false) }}
-              className="ctl" style={{ width: 120, padding: '6px 10px', fontSize: 13 }} />
-            <button className="btnH" onClick={doAddCategory}
-              style={{ padding: '7px 12px', fontSize: 12.5, fontWeight: 700, color: '#fff', background: '#3a7a5a', border: 'none', borderRadius: 7, cursor: 'pointer', fontFamily: 'inherit' }}>确定</button>
-            <button className="btnH" onClick={() => { setShowNewCat(false); setNewCatName('') }}
-              style={{ padding: '7px 10px', fontSize: 12.5, fontWeight: 700, color: '#8a7a5c', background: 'transparent', border: '1px solid #e0d2b8', borderRadius: 7, cursor: 'pointer', fontFamily: 'inherit' }}>取消</button>
-          </div>
+      <div style={card}>
+        <label style={label}>给抓到的物品定价（万梦幻币）</label>
+        {items.length === 0 ? (
+          <div style={{ fontSize: 13, color: '#a89878' }}>还没有抓取记录。去「场景记录」抓到东西后，这里就能给它定价。</div>
+        ) : unpriced.length === 0 ? (
+          <div style={{ fontSize: 13, color: '#3a7a5a' }}>抓到过的物品都已定价 ✓（在下面列表里改）</div>
         ) : (
-          <button className="btnH" onClick={() => setShowNewCat(true)}
-            style={{ fontSize: 13, fontWeight: 700, padding: '7px 14px', borderRadius: 7, cursor: 'pointer', border: '1px dashed #d0b98f', background: 'transparent', color: '#a8351f', fontFamily: 'inherit' }}>＋ 新分类</button>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <select value={selIdx} onChange={e => setSelIdx(Number(e.target.value))} className="ctl" style={{ flex: '1 1 200px' }}>
+              {unpriced.map((i, idx) => <option key={keyOf(i)} value={idx}>{i.label}（抓到 {i.count}）</option>)}
+            </select>
+            <input value={priceInput} onChange={e => setPriceInput(numOnly(e.target.value))} inputMode="decimal" placeholder="价格(万)" className="ctl" style={{ width: 120 }}
+              onKeyDown={e => { if (e.key === 'Enter') addPrice() }} />
+            <button className="btnH" onClick={addPrice} disabled={busy} style={{ padding: '9px 18px', fontSize: 13, fontWeight: 800, color: '#fff', background: busy ? '#d9cdbb' : '#3a7a5a', border: 'none', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}>添加</button>
+          </div>
         )}
+        {msg && <div style={{ marginTop: 10, fontSize: 13, fontWeight: 700, color: msg.ok ? '#3a7a5a' : '#c1452e' }}>{msg.text}</div>}
       </div>
 
-      {/* 物品 + 价格输入（自定义物品带 ×，尾部可添加物品） */}
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        {curGoods.map(g => (
-          <div key={g.id} style={{ width: 195, background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 10, padding: '10px 12px', position: 'relative' }}>
-            {g.custom && <span onClick={() => doDelGood(g.id, g.name)} title="删除该物品"
-              style={{ position: 'absolute', top: 5, right: 9, fontSize: 14, color: '#b0a48c', cursor: 'pointer', fontWeight: 700 }}>×</span>}
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#2a221a', marginBottom: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', paddingRight: g.custom ? 14 : 0 }}>{g.name}</div>
-            <input value={vals[g.id] ?? ''} onChange={e => setVals({ ...vals, [g.id]: numOnly(e.target.value) })}
-              inputMode="decimal" placeholder="未设置" className="ctl" style={{ padding: '7px 10px', fontSize: 13 }} />
+      <div style={card}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: '#2a221a', marginBottom: 12 }}>已定价（{priced.length}）</div>
+        {priced.length === 0 ? (
+          <div style={{ fontSize: 13, color: '#a89878' }}>还没定价</div>
+        ) : priced.map(it => (
+          <div key={keyOf(it)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderTop: '1px solid #f3ead9' }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: '#fff', padding: '2px 7px', borderRadius: 7, background: it.category === '召唤兽' ? '#c1452e' : it.category === '环装' ? '#8a4a12' : '#8a7a5c' }}>{it.category}</span>
+            <span style={{ flex: 1, fontSize: 14, fontWeight: 700, color: '#2a221a' }}>{it.label}</span>
+            {editing === keyOf(it) ? (
+              <>
+                <input value={editVal} onChange={e => setEditVal(numOnly(e.target.value))} inputMode="decimal" className="ctl" style={{ width: 100 }} autoFocus
+                  onKeyDown={e => { if (e.key === 'Enter') saveEdit(it); if (e.key === 'Escape') setEditing(null) }} />
+                <button className="btnH" onClick={() => saveEdit(it)} style={{ padding: '6px 12px', fontSize: 12.5, fontWeight: 700, color: '#fff', background: '#c1452e', border: 'none', borderRadius: 7, cursor: 'pointer', fontFamily: 'inherit' }}>存</button>
+                <button className="btnH" onClick={() => setEditing(null)} style={{ padding: '6px 10px', fontSize: 12.5, fontWeight: 700, color: '#8a7a5c', background: 'transparent', border: '1px solid #e0d2b8', borderRadius: 7, cursor: 'pointer', fontFamily: 'inherit' }}>×</button>
+              </>
+            ) : (
+              <>
+                <span className="serif" style={{ fontSize: 15, fontWeight: 900, color: '#c1452e', minWidth: 70, textAlign: 'right' }}>{it.price} 万</span>
+                <span onClick={() => { setEditing(keyOf(it)); setEditVal(String(it.price)) }} title="改价" style={{ fontSize: 13, color: '#a89878', cursor: 'pointer' }}>✎</span>
+                <span onClick={() => delPrice(it)} title="删除" style={{ fontSize: 15, color: '#b0a48c', cursor: 'pointer', fontWeight: 700 }}>×</span>
+              </>
+            )}
           </div>
         ))}
-        {cat && (
-          <div style={{ width: 195, background: 'transparent', border: '1px dashed #d0b98f', borderRadius: 10, padding: '10px 12px' }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#a8351f', marginBottom: 6 }}>＋ 添加物品到「{cat}」</div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <input value={newGoodName} onChange={e => setNewGoodName(e.target.value)} placeholder="如 魔兽要诀"
-                onKeyDown={e => { if (e.key === 'Enter') doAddGood() }}
-                className="ctl" style={{ padding: '7px 10px', fontSize: 13 }} />
-              <button className="btnH" onClick={doAddGood}
-                style={{ flexShrink: 0, padding: '0 12px', fontSize: 13, fontWeight: 800, color: '#fff', background: '#3a7a5a', border: 'none', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}>加</button>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   )
@@ -838,10 +779,15 @@ function CatchLogView() {
   const [statEnd, setStatEnd] = useState(dayStr(0))
   const [stats, setStats] = useState<CatchStat[]>([])
   const [statTotal, setStatTotal] = useState(0)
+  const [statVal, setStatVal] = useState<{ wan: number; rmb: number | null; rate: number | null; unpriced: number }>({ wan: 0, rmb: null, rate: null, unpriced: 0 })
   const [statBusy, setStatBusy] = useState(false)
   const loadStats = async (s = statStart, e = statEnd) => {
     setStatBusy(true)
-    try { const d = await fetchCatchStats(s, e); setStats(d.rows); setStatTotal(d.total) } catch { /* ignore */ }
+    try {
+      const d = await fetchCatchStats(s, e)
+      setStats(d.rows); setStatTotal(d.total)
+      setStatVal({ wan: d.total_value_wan, rmb: d.total_rmb, rate: d.rate, unpriced: d.unpriced })
+    } catch { /* ignore */ }
     setStatBusy(false)
   }
   useEffect(() => { loadStats() }, [])
@@ -997,7 +943,24 @@ function CatchLogView() {
           <div style={{ fontSize: 13, color: '#a89878' }}>该时间段内暂无收获记录</div>
         ) : (
           <>
-            <div style={{ fontSize: 12.5, color: '#8a7a5c', marginBottom: 10 }}>共 <span style={{ fontWeight: 900, color: '#c1452e' }}>{statTotal}</span> 件</div>
+            {/* 价值合计（联动物品价格） */}
+            <div style={{ display: 'flex', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, minWidth: 120, background: '#fbeee8', borderRadius: 10, padding: '10px 14px' }}>
+                <div style={{ fontSize: 11, color: '#a89878', marginBottom: 3 }}>收获总价值</div>
+                <div className="serif" style={{ fontSize: 18, fontWeight: 900, color: '#c1452e' }}>{statVal.wan} 万</div>
+              </div>
+              <div style={{ flex: 1, minWidth: 120, background: '#eaf7ee', borderRadius: 10, padding: '10px 14px' }}>
+                <div style={{ fontSize: 11, color: '#a89878', marginBottom: 3 }}>折算人民币</div>
+                <div className="serif" style={{ fontSize: 18, fontWeight: 900, color: '#07803a' }}>
+                  {statVal.rmb == null ? '—' : '¥' + statVal.rmb}
+                </div>
+              </div>
+            </div>
+            <div style={{ fontSize: 11.5, color: '#a89878', marginBottom: 10 }}>
+              共 <span style={{ fontWeight: 900, color: '#c1452e' }}>{statTotal}</span> 件
+              {statVal.rate == null && <span> · 未设梦幻币汇率，去「物品价格」设置后显示人民币</span>}
+              {statVal.unpriced > 0 && <span> · 有 {statVal.unpriced} 种未定价（不计入价值）</span>}
+            </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {stats.map((s, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff', border: '1px solid #e6dac4', borderRadius: 9, padding: '7px 12px' }}>
@@ -1005,6 +968,7 @@ function CatchLogView() {
                     background: s.category === '召唤兽' ? '#c1452e' : s.category === '环装' ? '#8a4a12' : '#8a7a5c' }}>{s.category}</span>
                   <span style={{ fontSize: 13.5, fontWeight: 700, color: '#2a221a' }}>{catchLabel(s)}</span>
                   <span className="serif" style={{ fontSize: 14, fontWeight: 900, color: '#c1452e' }}>×{s.count}</span>
+                  <span style={{ fontSize: 11.5, color: s.value == null ? '#b0a48c' : '#8a7a5c' }}>{s.value == null ? '未定价' : '= ' + s.value + '万'}</span>
                 </div>
               ))}
             </div>
@@ -1244,8 +1208,6 @@ export default function App() {
   if (err) return <div style={{ textAlign: 'center', padding: '80px 0', color: '#c1452e' }}>数据加载失败：{err}</div>
   if (!data) return <div style={{ textAlign: 'center', padding: '80px 0', color: '#b0a48c' }}>加载中…</div>
 
-  const region0 = data.regions[0]
-
   return (
     <div>
       {/* TOP BAR（fixed 固定，不随页面滚动） */}
@@ -1330,7 +1292,7 @@ export default function App() {
           } />
           <Route path="/goods" element={
             !authReady ? <div style={{ textAlign: 'center', padding: '60px 0', color: '#b0a48c' }}>加载中…</div>
-            : user ? <GoodsView regions={data.regions} initDaqu={region0?.daqu || ''} initServer={region0?.servers[0]?.name || ''} />
+            : user ? <PricingView />
             : (
               <div style={{ maxWidth: 400, margin: '40px auto 0', background: '#fdfaf3', border: '1px solid #ece2cf', borderRadius: 14, padding: 30, textAlign: 'center' }}>
                 <div style={{ fontSize: 16, fontWeight: 800, color: '#2a221a', marginBottom: 10 }}>物品价格需要登录后使用</div>

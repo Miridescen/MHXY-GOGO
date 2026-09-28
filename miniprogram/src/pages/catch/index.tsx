@@ -50,10 +50,11 @@ export default function CatchPage() {
   const [statEnd, setStatEnd] = useState(dayStr(0))
   const [stats, setStats] = useState<CatchStat[]>([])
   const [statTotal, setStatTotal] = useState(0)
+  const [statVal, setStatVal] = useState<{ wan: number; rmb: number | null; rate: number | null; unpriced: number }>({ wan: 0, rmb: null, rate: null, unpriced: 0 })
   const [statBusy, setStatBusy] = useState(false)
   const loadStats = async (s = statStart, e = statEnd) => {
     setStatBusy(true)
-    try { const d = await fetchCatchStats(s, e); setStats(d.rows); setStatTotal(d.total) } catch (err) { /* ignore */ }
+    try { const d = await fetchCatchStats(s, e); setStats(d.rows); setStatTotal(d.total); setStatVal({ wan: d.total_value_wan, rmb: d.total_rmb, rate: d.rate, unpriced: d.unpriced }) } catch (err) { /* ignore */ }
     setStatBusy(false)
   }
   const quickRange = (days: number) => { const s = dayStr(-(days - 1)), e = dayStr(0); setStatStart(s); setStatEnd(e); loadStats(s, e) }
@@ -240,13 +241,18 @@ export default function CatchPage() {
             ? <Text className='statHint'>该时间段内暂无收获记录</Text>
             : (
               <View>
-                <View className='statTotal'>共 <Text className='statTotalNum'>{statTotal}</Text> 件</View>
+                <View className='valRow'>
+                  <View className='valCell valWan'><Text className='valLabel'>收获总价值</Text><Text className='valNum wanNum'>{statVal.wan} 万</Text></View>
+                  <View className='valCell valRmb'><Text className='valLabel'>折算人民币</Text><Text className='valNum rmbNum'>{statVal.rmb == null ? '—' : '¥' + statVal.rmb}</Text></View>
+                </View>
+                <View className='statTotal'>共 <Text className='statTotalNum'>{statTotal}</Text> 件{statVal.rate == null ? ' · 未设汇率' : ''}{statVal.unpriced > 0 ? ` · ${statVal.unpriced}种未定价` : ''}</View>
                 <View className='statChips'>
                   {stats.map((s, i) => (
                     <View key={i} className='statChip'>
                       <Text className={'statTag ' + (s.category === '召唤兽' ? 'tagPet' : s.category === '环装' ? 'tagRing' : 'tagOther')}>{s.category}</Text>
                       <Text className='statName'>{catchLabel(s)}</Text>
                       <Text className='statCount'>×{s.count}</Text>
+                      <Text className='statValue'>{s.value == null ? '未定价' : '=' + s.value + '万'}</Text>
                     </View>
                   ))}
                 </View>

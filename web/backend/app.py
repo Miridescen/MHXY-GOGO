@@ -19,6 +19,7 @@ import json
 import time
 import base64
 import hmac
+from typing import Optional
 import sqlite3
 import hashlib
 import secrets
@@ -464,6 +465,18 @@ def _ensure_catch_tables(db):
                 m = re.fullmatch(r"(\d+)\s*[,，]\s*(\d+)", str(coord).strip())
                 if m:
                     db.execute("UPDATE catch_log SET coord_x=?, coord_y=? WHERE id=?", (int(m.group(1)), int(m.group(2)), rid))
+    # 物品价格：按抓取记录的 (category,name,sub_type) 定价（万梦幻币），无区服；收益查询据此算价值
+    db.execute("""CREATE TABLE IF NOT EXISTS catch_price(
+        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER,
+        category TEXT, name TEXT, sub_type TEXT, price REAL, updated_at TEXT)""")
+
+
+def _catch_label(category, name, sub_type):
+    if category == "环装":
+        return f"{name}环·{sub_type}"
+    if category == "告密":
+        return "告密"
+    return name
 
 
 def _require_user(db, token: str):
@@ -602,8 +615,98 @@ def catch_stats(start: str = "", end: str = "", x_auth_token: str = Header(defau
            GROUP BY l.category, l.name, l.sub_type
            ORDER BY count DESC, l.category, l.name""",
         (user["id"], start, end))]
+    # 价格联动：每项 count × 单价(万) = 价值(万)；汇总后 × 汇率 = 人民币
+    rate = db.execute("SELECT mhb_rate FROM user WHERE id=?", (user["id"],)).fetchone()["mhb_rate"]
+    pmap = {(p["category"], p["name"], p["sub_type"] or ""): p["price"]
+            for p in db.execute("SELECT category,name,sub_type,price FROM catch_price WHERE user_id=?", (user["id"],))}
+    total_wan = 0.0
+    unpriced = 0
+    for r in rows:
+        price = pmap.get((r["category"], r["name"], r["sub_type"] or ""))
+        r["price"] = price
+        if price is None:
+            r["value"] = None
+            unpriced += 1
+        else:
+            r["value"] = round(price * r["count"], 2)
+            total_wan += r["value"]
+    total_wan = round(total_wan, 2)
+    total_rmb = round(total_wan * rate, 2) if rate else None
     db.close()
-    return {"start": start, "end": end, "rows": rows, "total": sum(r["count"] for r in rows)}
+    return {"start": start, "end": end, "rows": rows, "total": sum(r["count"] for r in rows),
+            "rate": rate, "total_value_wan": total_wan, "total_rmb": total_rmb, "unpriced": unpriced}
+
+
+# ---- 物品价格（基于抓取记录去重项定价，无区服）+ 梦幻币汇率 ----
+class CatchPriceBody(BaseModel):
+    category: str
+    name: str
+    sub_type: str = ""
+    price: Optional[float] = None   # None = 删除该项价格
+
+
+class RateBody(BaseModel):
+    rate: Optional[float] = None    # 元 / 万梦幻币；None = 清空
+
+
+@app.get("/api/catch_price")
+def catch_price_list(x_auth_token: str = Header(default="")):
+    db = conn()
+    _ensure_catch_tables(db)
+    user = _require_user(db, x_auth_token)
+    rate = db.execute("SELECT mhb_rate FROM user WHERE id=?", (user["id"],)).fetchone()["mhb_rate"]
+    caught = db.execute("""SELECT l.category, l.name, l.sub_type, COUNT(*) c
+        FROM catch_log l JOIN catch_task t ON t.id = l.task_id
+        WHERE t.user_id = ? GROUP BY l.category, l.name, l.sub_type ORDER BY c DESC""",
+        (user["id"],)).fetchall()
+    pmap = {(p["category"], p["name"], p["sub_type"] or ""): p["price"]
+            for p in db.execute("SELECT category,name,sub_type,price FROM catch_price WHERE user_id=?", (user["id"],))}
+    items = [{"category": r["category"], "name": r["name"], "sub_type": r["sub_type"] or "",
+              "label": _catch_label(r["category"], r["name"], r["sub_type"] or ""),
+              "count": r["c"], "price": pmap.get((r["category"], r["name"], r["sub_type"] or ""))}
+             for r in caught]
+    db.close()
+    return {"rate": rate, "items": items}
+
+
+@app.post("/api/catch_price/set")
+def catch_price_set(body: CatchPriceBody, x_auth_token: str = Header(default="")):
+    db = conn()
+    _ensure_catch_tables(db)
+    user = _require_user(db, x_auth_token)
+    sub = body.sub_type or ""
+    key = (user["id"], body.category, body.name, sub)
+    if body.price is None:
+        db.execute("DELETE FROM catch_price WHERE user_id=? AND category=? AND name=? AND sub_type=?", key)
+    else:
+        p = round(float(body.price), 2)
+        if p < 0:
+            db.close()
+            raise HTTPException(400, "价格不能为负")
+        ex = db.execute("SELECT id FROM catch_price WHERE user_id=? AND category=? AND name=? AND sub_type=?", key).fetchone()
+        if ex:
+            db.execute("UPDATE catch_price SET price=?, updated_at=? WHERE id=?", (p, _server_now(), ex["id"]))
+        else:
+            db.execute("INSERT INTO catch_price(user_id,category,name,sub_type,price,updated_at) VALUES(?,?,?,?,?,?)",
+                       (user["id"], body.category, body.name, sub, p, _server_now()))
+    db.commit()
+    db.close()
+    return {"ok": True}
+
+
+@app.post("/api/catch_price/rate")
+def catch_price_rate(body: RateBody, x_auth_token: str = Header(default="")):
+    db = conn()
+    _ensure_user_tables(db)
+    user = _require_user(db, x_auth_token)
+    r = None if body.rate is None else round(float(body.rate), 4)
+    if r is not None and r < 0:
+        db.close()
+        raise HTTPException(400, "汇率不能为负")
+    db.execute("UPDATE user SET mhb_rate=? WHERE id=?", (r, user["id"]))
+    db.commit()
+    db.close()
+    return {"ok": True}
 
 
 # ============ 场景 / 宝宝 数据（scene + pet + scene_pet，供抓宝宝等功能复用）============
@@ -888,6 +991,9 @@ def _ensure_user_tables(db):
     # wx_openid：微信/抖音 openid 绑定列，支持把第三方登录绑到已有账号（账号合并）
     if "wx_openid" not in [r[1] for r in db.execute("PRAGMA table_info(user)")]:
         db.execute("ALTER TABLE user ADD COLUMN wx_openid TEXT")
+    # mhb_rate：梦幻币兑人民币汇率（元 / 万梦幻币），全局一个，用于收益查询折算
+    if "mhb_rate" not in [r[1] for r in db.execute("PRAGMA table_info(user)")]:
+        db.execute("ALTER TABLE user ADD COLUMN mhb_rate REAL")
     db.execute("""CREATE TABLE IF NOT EXISTS user_session(
         token TEXT PRIMARY KEY, user_id INTEGER,
         created_at TEXT, expires_at TEXT)""")
