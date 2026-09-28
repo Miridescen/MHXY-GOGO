@@ -792,6 +792,7 @@ function CatchLogView() {
   }
   useEffect(() => { loadStats() }, [])
   const quickRange = (days: number) => { const s = dayStr(-(days - 1)), e = dayStr(0); setStatStart(s); setStatEnd(e); loadStats(s, e) }
+  const quickYesterday = () => { const y = dayStr(-1); setStatStart(y); setStatEnd(y); loadStats(y, y) }
 
   const loadTasks = () => fetchCatchTasks().then(setTasks).catch(() => { /* ignore */ })
   useEffect(() => { loadTasks() }, [])
@@ -934,10 +935,12 @@ function CatchLogView() {
             style={{ padding: '10px 18px', fontSize: 13, fontWeight: 800, color: '#fff', background: statBusy ? '#d9cdbb' : '#c1452e', border: 'none', borderRadius: 8, cursor: statBusy ? 'default' : 'pointer', fontFamily: 'inherit' }}>查询</button>
         </div>
         <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
-          {([['今天', 1], ['近7天', 7], ['近30天', 30]] as const).map(([label, n]) => (
-            <button key={label} className="btnH" onClick={() => quickRange(n)}
-              style={{ padding: '6px 12px', fontSize: 12, fontWeight: 700, color: '#6a5a44', background: '#f5ecdd', border: '1px solid #e6dac4', borderRadius: 7, cursor: 'pointer', fontFamily: 'inherit' }}>{label}</button>
-          ))}
+          {(() => { const bs: CSSProperties = { padding: '6px 12px', fontSize: 12, fontWeight: 700, color: '#6a5a44', background: '#f5ecdd', border: '1px solid #e6dac4', borderRadius: 7, cursor: 'pointer', fontFamily: 'inherit' }; return <>
+            <button className="btnH" onClick={() => quickRange(1)} style={bs}>今天</button>
+            <button className="btnH" onClick={quickYesterday} style={bs}>昨天</button>
+            <button className="btnH" onClick={() => quickRange(7)} style={bs}>近7天</button>
+            <button className="btnH" onClick={() => quickRange(30)} style={bs}>近30天</button>
+          </> })()}
         </div>
         {stats.length === 0 ? (
           <div style={{ fontSize: 13, color: '#a89878' }}>该时间段内暂无收获记录</div>

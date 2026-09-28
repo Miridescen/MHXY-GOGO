@@ -58,6 +58,7 @@ export default function CatchPage() {
     setStatBusy(false)
   }
   const quickRange = (days: number) => { const s = dayStr(-(days - 1)), e = dayStr(0); setStatStart(s); setStatEnd(e); loadStats(s, e) }
+  const quickYesterday = () => { const y = dayStr(-1); setStatStart(y); setStatEnd(y); loadStats(y, y) }
 
   // 进行中的任务 = 最近一条未结束的（服务端为准，刷新/换设备不丢）
   const active = tasks.find(t => !t.end_time) || null
@@ -231,9 +232,10 @@ export default function CatchPage() {
           </Picker>
         </View>
         <View className='quickRow'>
-          {([['今天', 1], ['近7天', 7], ['近30天', 30]] as const).map(([label, n]) => (
-            <View key={label} className='quickBtn' onClick={() => quickRange(n)}>{label}</View>
-          ))}
+          <View className='quickBtn' onClick={() => quickRange(1)}>今天</View>
+          <View className='quickBtn' onClick={quickYesterday}>昨天</View>
+          <View className='quickBtn' onClick={() => quickRange(7)}>近7天</View>
+          <View className='quickBtn' onClick={() => quickRange(30)}>近30天</View>
         </View>
         {statBusy
           ? <Text className='statHint'>查询中…</Text>
